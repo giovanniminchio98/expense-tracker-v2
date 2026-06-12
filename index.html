@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=yes">
+    <title>PursePal — Smart Expense Tracker</title>
+    
+    <!-- PWA + iPhone Home Screen Icons & Meta -->
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%233b82f6' rx='22'/%3E%3Ctext x='50' y='68' font-size='52' text-anchor='middle' fill='white' font-weight='bold'%3E💰%3C/text%3E%3C/svg%3E">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="PursePal">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#f0f9ff">
+    <link rel="manifest" href="data:application/manifest+json,{%22name%22:%22PursePal%22,%22short_name%22:%22PursePal%22,%22start_url%22:%22.%22,%22display%22:%22standalone%22,%22background_color%22:%22%23f0f9ff%22,%22theme_color%22:%22%233b82f6%22,%22icons%22:[{%22src%22:%22data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%233b82f6' rx='22'/%3E%3Ctext x='50' y='68' font-size='52' text-anchor='middle' fill='white' font-weight='bold'%3E💰%3C/text%3E%3C/svg%3E%22,%22sizes%22:%22any%22,%22type%22:%22image/svg+xml%22}]}">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: linear-gradient(145deg, #eef5ff 0%, #e0edfa 100%);
+            font-family: system-ui, -apple-system, 'Inter', 'SF Pro Text', Helvetica, sans-serif;
+            padding: 20px 14px 90px;
+            color: #0c4a6e;
+        }
+
+        .app-container {
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 12px;
+            background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(10px);
+            padding: 6px;
+            border-radius: 60px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        .tab-btn {
+            flex: 1;
+            background: transparent;
+            border: none;
+            padding: 12px 0;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: 0.2s;
+            color: #1e5a7a;
+        }
+        .tab-btn.active {
+            background: #3b82f6;
+            color: white;
+            box-shadow: 0 6px 14px rgba(59,130,246,0.3);
+        }
+
+        /* Panels */
+        .panel {
+            display: none;
+            animation: fadeIn 0.25s ease;
+        }
+        .panel.active-panel {
+            display: block;
+        }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(6px);} to { opacity:1; transform:translateY(0);} }
+
+        /* Cards */
+        .card {
+            background: white;
+            border-radius: 36px;
+            padding: 22px 18px;
+            margin-bottom: 20px;
+            box-shadow: 0 12px 28px rgba(0,0,0,0.05);
+            backdrop-filter: blur(2px);
+        }
+
+        /* Month header with better arrows */
+        .month-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .nav-group {
+            display: flex;
+            gap: 12px;
+            background: #f1f5f9;
+            padding: 4px 8px;
+            border-radius: 60px;
+        }
+        .nav-btn {
+            background: white;
+            border: none;
+            width: 48px;
+            height: 48px;
+            border-radius: 40px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+            transition: 0.15s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #2563eb;
+        }
+        .nav-btn:active { transform: scale(0.94); background: #eef2ff; }
+        .current-month {
+            font-weight: 700;
+            font-size: 1.35rem;
+            background: #eef2ff;
+            padding: 8px 24px;
+            border-radius: 60px;
+            color: #1e40af;
+        }
+
+        /* Week Calendar */
+        .weekdays {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            text-align: center;
+            font-weight: 600;
+            color: #3b82f6;
+            margin-bottom: 12px;
+            font-size: 0.8rem;
+        }
+        .calendar-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .week-row {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 6px;
+        }
+        .day-cell {
+            background: #f8fafc;
+            border-radius: 22px;
+            padding: 10px 4px;
+            text-align: center;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.12s;
+            min-height: 72px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #e0f2fe;
+        }
+        .day-cell.other-month { opacity: 0.45; background: #f1f5f9; }
+        .day-cell.selected-day {
+            background: #dbeafe;
+            border: 2px solid #3b82f6;
+            box-shadow: 0 4px 10px rgba(59,130,246,0.2);
+        }
+        .day-number { font-weight: 800; font-size: 1rem; }
+        .day-amount {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: #b91c1c;
+            background: #fff0f0;
+            padding: 2px 8px;
+            border-radius: 40px;
+            margin-top: 5px;
+        }
+
+        /* Daily list */
+        .daily-card {
+            background: white;
+            border-radius: 32px;
+            padding: 20px;
+        }
+        .daily-header {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 2px solid #e2f0ff;
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+            font-weight: 700;
+        }
+        .expense-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #fefefe;
+            border-radius: 24px;
+            padding: 12px 16px;
+            margin-bottom: 10px;
+            border: 1px solid #e2f0ff;
+        }
+        .delete-expense {
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            padding: 6px 12px;
+            border-radius: 30px;
+        }
+        
+        /* Stats Panel - Chill light blue theme */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 14px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: #f0f9ff;
+            border-radius: 28px;
+            padding: 16px 8px;
+            text-align: center;
+            transition: 0.1s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+            border: 1px solid #cbeafe;
+        }
+        .stat-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #2c6e9e;
+            font-weight: 600;
+        }
+        .stat-value {
+            font-size: 1.7rem;
+            font-weight: 800;
+            color: #075985;
+        }
+        .year-nav {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 24px;
+            background: #eef2ff;
+            padding: 8px 18px;
+            border-radius: 60px;
+            width: fit-content;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .year-nav button {
+            background: white;
+            border: none;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            font-size: 1.4rem;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        .insight-badge {
+            background: #d9effa;
+            border-radius: 28px;
+            padding: 14px;
+            margin-top: 12px;
+            font-size: 0.85rem;
+            text-align: center;
+        }
+
+        /* MODAL - Bigger buttons, numpad refined */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 30, 50, 0.7);
+            backdrop-filter: blur(12px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            visibility: hidden;
+            opacity: 0;
+            transition: 0.2s;
+        }
+        .modal.active {
+            visibility: visible;
+            opacity: 1;
+        }
+        .modal-card {
+            background: white;
+            width: 92%;
+            max-width: 420px;
+            border-radius: 56px;
+            padding: 28px 22px 32px;
+            text-align: center;
+            box-shadow: 0 40px 50px rgba(0,0,0,0.2);
+        }
+        .modal-card h3 {
+            font-size: 1.9rem;
+            margin-bottom: 18px;
+            color: #0c4a6e;
+        }
+        .modal-card input {
+            width: 100%;
+            padding: 16px 18px;
+            border-radius: 80px;
+            border: 1.5px solid #cbdff2;
+            font-size: 1.1rem;
+            margin: 8px 0;
+            background: #fefefe;
+        }
+        .numpad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin: 18px 0;
+        }
+        .numpad button {
+            background: #f0f7ff;
+            border: none;
+            padding: 18px 0;
+            font-size: 1.6rem;
+            font-weight: 600;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: 0.05s linear;
+            color: #1e3a5f;
+        }
+        .numpad button:active { background: #d9eaff; transform: scale(0.96);}
+        .modal-buttons {
+            display: flex;
+            gap: 14px;
+            margin: 16px 0 6px;
+        }
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+            padding: 16px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            border: none;
+            border-radius: 60px;
+            flex: 1;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(59,130,246,0.3);
+        }
+        .btn-secondary {
+            background: #eef2ff;
+            color: #2563eb;
+            padding: 16px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 60px;
+            flex: 1;
+            cursor: pointer;
+        }
+        .close-icon {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            margin-top: 10px;
+            color: #6b8eae;
+            font-weight: 500;
+            cursor: pointer;
+            padding: 8px 16px;
+        }
+        .small-note {
+            font-size: 0.7rem;
+            color: #5f8bad;
+        }
+        .fab {
+            position: fixed;
+            bottom: 24px;
+            right: 20px;
+            background: #3b82f6;
+            width: 66px;
+            height: 66px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.2rem;
+            color: white;
+            border: none;
+            box-shadow: 0 10px 22px rgba(59,130,246,0.5);
+            cursor: pointer;
+            z-index: 10;
+            transition: 0.1s;
+        }
+        .fab:active { transform: scale(0.94); }
+        footer { font-size: 10px; text-align: center; margin-top: 25px; color: #5f8eb3; }
+        button { cursor: pointer; }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="track">📆 Tracker</button>
+        <button class="tab-btn" data-tab="stats">📊 Stats & Insights</button>
+    </div>
+
+    <!-- TRACKER PANEL -->
+    <div id="trackPanel" class="panel active-panel">
+        <div class="card">
+            <div class="month-header">
+                <div class="nav-group">
+                    <button class="nav-btn" id="prevMonthBtn">◀</button>
+                    <button class="nav-btn" id="nextMonthBtn">▶</button>
+                </div>
+                <span class="current-month" id="currentMonthLabel">June 2026</span>
+                <div style="width: 50px;"></div>
+            </div>
+            <div class="weekdays">
+                <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+            </div>
+            <div id="calendarGrid" class="calendar-grid"></div>
+        </div>
+
+        <div class="daily-card">
+            <div class="daily-header">
+                <span id="selectedDateTitle">📅 Selected day</span>
+                <span id="dailyTotalSpan">$0.00</span>
+            </div>
+            <div id="expensesListContainer">
+                <div class="empty-day">✨ No expenses for this day</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- STATS PANEL with extra metrics -->
+    <div id="statsPanel" class="panel">
+        <div class="card">
+            <div class="year-nav">
+                <button id="prevYearBtn">◀</button>
+                <span id="statsYearLabel" style="font-weight:800; font-size:1.3rem; background:#eef2ff; padding:6px 24px; border-radius:60px;">2026</span>
+                <button id="nextYearBtn">▶</button>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-card"><div class="stat-label">💰 Year Total</div><div class="stat-value" id="yearTotal">$0</div></div>
+                <div class="stat-card"><div class="stat-label">📆 Monthly Avg</div><div class="stat-value" id="monthlyAvg">$0</div></div>
+                <div class="stat-card"><div class="stat-label">🏆 Best Month</div><div class="stat-value" id="bestMonth">-</div></div>
+                <div class="stat-card"><div class="stat-label">⚠️ Worst Month</div><div class="stat-value" id="worstMonth">-</div></div>
+                <div class="stat-card"><div class="stat-label">🔥 Highest Day</div><div class="stat-value" id="highestDay">$0</div></div>
+                <div class="stat-card"><div class="stat-label">📉 Avg per Day</div><div class="stat-value" id="avgDayStat">$0</div></div>
+                <div class="stat-card"><div class="stat-label">🧾 Total Entries</div><div class="stat-value" id="totalEntriesStat">0</div></div>
+                <div class="stat-card"><div class="stat-label">📅 Active Days</div><div class="stat-value" id="activeDaysStat">0</div></div>
+                <div class="stat-card"><div class="stat-label">💸 Biggest Expense</div><div class="stat-value" id="biggestExpense">$0</div></div>
+                <div class="stat-card"><div class="stat-label">🍀 Avg per Entry</div><div class="stat-value" id="avgPerEntry">$0</div></div>
+            </div>
+            <div id="monthlyBreakdown" style="margin-top: 12px; background:#eef6fe; border-radius: 32px; padding: 16px;"></div>
+            <div class="insight-badge" id="insightMessage">✨ Tap on any day to add expenses, stay mindful!</div>
+        </div>
+    </div>
+</div>
+
+<button class="fab" id="openAddBtn">+</button>
+
+<!-- Modal with NumPad & Big Buttons -->
+<div class="modal" id="expenseModal">
+    <div class="modal-card">
+        <h3>➕ Add Expense</h3>
+        <input type="text" id="expenseDesc" placeholder="Description (Coffee, Rent...)" autocomplete="off">
+        <input type="text" id="expenseAmountInput" placeholder="0.00" readonly style="background:#f3f9ff; font-size:1.7rem; text-align:center; font-weight:600;">
+        <div class="numpad" id="numpadContainer"></div>
+        <div class="modal-buttons">
+            <button class="btn-primary" id="saveExpenseBtn">✓ Save</button>
+            <button class="btn-secondary" id="cancelModalBtn">Cancel</button>
+        </div>
+        <button class="close-icon" id="closeModalBtn">✕ Close without adding</button>
+        <div class="small-note">Use numpad, then Save</div>
+    </div>
+</div>
+
+<script>
+    // ---------- PERSISTENT STORAGE ----------
+    const STORAGE_KEY = 'pursepal_pro_expenses_v2';
+    let expenses = [];
+
+    function loadExpenses() {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if(stored) { try { expenses = JSON.parse(stored); if(!Array.isArray(expenses)) expenses = []; } catch(e) { expenses = []; } }
+        else { expenses = []; }
+    }
+    function saveExpenses() { localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses)); }
+
+    function getExpensesForDate(dateStr) { return expenses.filter(e => e.dateStr === dateStr); }
+    function getTotalForDate(dateStr) { return getExpensesForDate(dateStr).reduce((s,e)=>s+e.amount,0); }
+
+    function addExpense(description, amount, dateStr) {
+        if(!description.trim()) description = "Expense";
+        if(isNaN(amount) || amount <= 0) return false;
+        expenses.push({
+            id: Date.now() + Math.random()*10000,
+            dateStr: dateStr,
+            description: description.trim().substring(0, 48),
+            amount: parseFloat(amount)
+        });
+        saveExpenses();
+        return true;
+    }
+    function deleteExpenseById(id) {
+        expenses = expenses.filter(e => e.id !== id);
+        saveExpenses();
+    }
+
+    // Global state
+    let currentDisplayDate = new Date();
+    let selectedDateStr = new Date().toISOString().slice(0,10);
+    let statsYear = new Date().getFullYear();
+
+    // ---------- CALENDAR (Monday start, weeks) ----------
+    function getMonthCalendar(year, month) {
+        const firstDay = new Date(year, month, 1);
+        let startWeekday = firstDay.getDay();
+        let offset = (startWeekday === 0 ? 6 : startWeekday - 1);
+        const startDate = new Date(year, month, 1);
+        startDate.setDate(1 - offset);
+        let weeks = [];
+        let current = new Date(startDate);
+        for(let w=0; w<6; w++) {
+            let week = [];
+            for(let i=0;i<7;i++) {
+                let dateObj = new Date(current);
+                let dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')}`;
+                let amount = getTotalForDate(dateStr);
+                week.push({ dateObj, dateStr, amount, isCurrentMonth: dateObj.getMonth() === month });
+                current.setDate(current.getDate()+1);
+            }
+            weeks.push(week);
+            if(week[6].dateObj.getMonth() !== month && week[6].dateObj.getDate() > 7) break;
+        }
+        return weeks;
+    }
+
+    function renderCalendar() {
+        const year = currentDisplayDate.getFullYear();
+        const month = currentDisplayDate.getMonth();
+        const weeks = getMonthCalendar(year, month);
+        const container = document.getElementById('calendarGrid');
+        container.innerHTML = '';
+        for(let week of weeks) {
+            const row = document.createElement('div'); row.className = 'week-row';
+            for(let day of week) {
+                const cell = document.createElement('div');
+                cell.className = `day-cell ${!day.isCurrentMonth ? 'other-month' : ''} ${selectedDateStr === day.dateStr ? 'selected-day' : ''}`;
+                const amtFmt = day.amount > 0 ? `$${day.amount.toFixed(1)}` : '';
+                cell.innerHTML = `<div class="day-number">${day.dateObj.getDate()}</div>${amtFmt ? `<div class="day-amount">${amtFmt}</div>` : ''}`;
+                cell.addEventListener('click', (e) => { e.stopPropagation(); selectedDateStr = day.dateStr; renderCalendar(); renderDailyView(); });
+                row.appendChild(cell);
+            }
+            container.appendChild(row);
+        }
+        const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        document.getElementById('currentMonthLabel').innerHTML = `${monthNames[month]} ${year}`;
+    }
+
+    function renderDailyView() {
+        const exps = getExpensesForDate(selectedDateStr);
+        const total = exps.reduce((s,e)=>s+e.amount,0);
+        document.getElementById('dailyTotalSpan').innerHTML = `$${total.toFixed(2)}`;
+        const title = selectedDateStr === new Date().toISOString().slice(0,10) ? `📆 Today · ${selectedDateStr}` : `📅 ${selectedDateStr}`;
+        document.getElementById('selectedDateTitle').innerText = title;
+        const container = document.getElementById('expensesListContainer');
+        if(exps.length===0) { container.innerHTML = `<div class="empty-day">💸 No expenses. Tap + to add.</div>`; return; }
+        container.innerHTML = '';
+        exps.forEach(exp => {
+            const div = document.createElement('div'); div.className = 'expense-item';
+            div.innerHTML = `<span><strong>${escapeHtml(exp.description)}</strong></span><div style="display:flex;gap:12px;"><span style="background:#fee2e2;padding:6px 14px;border-radius:40px;font-weight:700;">$${exp.amount.toFixed(2)}</span><button class="delete-expense" data-id="${exp.id}">🗑️</button></div>`;
+            container.appendChild(div);
+        });
+        document.querySelectorAll('.delete-expense').forEach(btn => {
+            btn.addEventListener('click', (e) => { const id = parseInt(btn.getAttribute('data-id')); deleteExpenseById(id); renderCalendar(); renderDailyView(); renderStats(); });
+        });
+    }
+
+    // Advanced Stats Engine
+    function computeAdvancedStats(year) {
+        const yearExps = expenses.filter(e => parseInt(e.dateStr.split('-')[0]) === year);
+        if(yearExps.length === 0) return { yearTotal:0, monthlyAvg:0, bestMonth:'-', worstMonth:'-', highestDayAmount:0, highestDayStr:'', avgPerDay:0, totalEntries:0, activeDays:0, biggestExpenseAmt:0, avgPerEntry:0, monthlyTotals:{} };
+        let monthlyTotals = {}, dayTotals = {};
+        let biggestExpenseAmt = 0;
+        for(let exp of yearExps) {
+            let month = exp.dateStr.slice(0,7);
+            monthlyTotals[month] = (monthlyTotals[month] || 0) + exp.amount;
+            dayTotals[exp.dateStr] = (dayTotals[exp.dateStr] || 0) + exp.amount;
+            if(exp.amount > biggestExpenseAmt) biggestExpenseAmt = exp.amount;
+        }
+        let monthEntries = Object.entries(monthlyTotals);
+        let best = monthEntries.length ? monthEntries.reduce((a,b)=> a[1]>b[1] ? a:b, ['',0]) : null;
+        let worst = monthEntries.length ? monthEntries.reduce((a,b)=> a[1]<b[1] ? a:b, ['',999999]) : null;
+        let highestDay = Object.entries(dayTotals).reduce((a,b)=> a[1]>b[1] ? a:b, ['',0]);
+        let yearTotal = yearExps.reduce((s,e)=>s+e.amount,0);
+        let activeDays = Object.keys(dayTotals).length;
+        let avgPerDay = activeDays ? yearTotal/activeDays : 0;
+        let monthlyAvg = monthEntries.length ? yearTotal/monthEntries.length : 0;
+        let avgPerEntry = yearExps.length ? yearTotal/yearExps.length : 0;
+        return {
+            yearTotal, monthlyAvg, bestMonth: best ? `${best[0]} ($${best[1].toFixed(0)})` : '-',
+            worstMonth: worst ? `${worst[0]} ($${worst[1].toFixed(0)})` : '-',
+            highestDayAmount: highestDay[1], highestDayStr: highestDay[0],
+            avgPerDay, totalEntries: yearExps.length, activeDays,
+            biggestExpenseAmt, avgPerEntry, monthlyTotals
+        };
+    }
+
+    function renderStats() {
+        const stats = computeAdvancedStats(statsYear);
+        document.getElementById('yearTotal').innerHTML = `$${stats.yearTotal.toFixed(2)}`;
+        document.getElementById('monthlyAvg').innerHTML = `$${stats.monthlyAvg.toFixed(2)}`;
+        document.getElementById('bestMonth').innerHTML = stats.bestMonth;
+        document.getElementById('worstMonth').innerHTML = stats.worstMonth;
+        document.getElementById('highestDay').innerHTML = stats.highestDayAmount > 0 ? `$${stats.highestDayAmount.toFixed(2)}<span style="font-size:0.6rem;"> (${stats.highestDayStr})</span>` : '$0';
+        document.getElementById('avgDayStat').innerHTML = `$${stats.avgPerDay.toFixed(2)}`;
+        document.getElementById('totalEntriesStat').innerHTML = stats.totalEntries;
+        document.getElementById('activeDaysStat').innerHTML = stats.activeDays;
+        document.getElementById('biggestExpense').innerHTML = `$${stats.biggestExpenseAmt.toFixed(2)}`;
+        document.getElementById('avgPerEntry').innerHTML = `$${stats.avgPerEntry.toFixed(2)}`;
+        document.getElementById('statsYearLabel').innerText = statsYear;
+        let monthsOrder = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+        let html = `<div style="font-weight:700; margin-bottom:10px;">📅 Monthly spending (${statsYear})</div><div style="display:flex; flex-wrap:wrap; gap:8px;">`;
+        for(let m of monthsOrder) {
+            let key = `${statsYear}-${m}`;
+            let total = stats.monthlyTotals[key] || 0;
+            let short = new Date(statsYear, parseInt(m)-1,1).toLocaleString('default',{month:'short'});
+            html += `<span style="background:#e0f2fe; padding:6px 14px; border-radius:40px;">${short}: $${total.toFixed(2)}</span>`;
+        }
+        html += `</div>`;
+        document.getElementById('monthlyBreakdown').innerHTML = html;
+        let insight = stats.totalEntries ? `✨ You spent $${stats.yearTotal.toFixed(2)} in ${statsYear}. Avg $${stats.avgPerDay.toFixed(2)}/day. Keep tracking!` : `✨ Add your first expense to unlock insights.`;
+        document.getElementById('insightMessage').innerHTML = insight;
+    }
+
+    // ---------- MODAL NUMPAD ----------
+    let currentAmountStr = "";
+    const amountInputField = document.getElementById('expenseAmountInput');
+    function buildNumpad() {
+        const pad = document.getElementById('numpadContainer');
+        pad.innerHTML = '';
+        ['7','8','9','4','5','6','1','2','3','0','.', '⌫'].forEach(btn => {
+            const b = document.createElement('button');
+            b.innerText = btn;
+            b.addEventListener('click', () => {
+                if(btn === '⌫') { currentAmountStr = currentAmountStr.slice(0,-1); }
+                else if(btn === '.') { if(!currentAmountStr.includes('.')) currentAmountStr += '.'; }
+                else { currentAmountStr += btn; }
+                if(currentAmountStr === '') amountInputField.value = '';
+                else if(currentAmountStr === '.') amountInputField.value = '0.';
+                else amountInputField.value = currentAmountStr;
+            });
+            pad.appendChild(b);
+        });
+    }
+    const modal = document.getElementById('expenseModal');
+    function openModal() { modal.classList.add('active'); document.getElementById('expenseDesc').value = ''; currentAmountStr = ''; amountInputField.value = ''; buildNumpad(); }
+    function closeModal() { modal.classList.remove('active'); }
+    function handleSave() {
+        let desc = document.getElementById('expenseDesc').value.trim();
+        if(!desc) desc = "Expense";
+        let amountVal = parseFloat(amountInputField.value);
+        if(isNaN(amountVal) || amountVal <= 0) { alert("Enter amount using numpad ( > 0 )"); return; }
+        addExpense(desc, amountVal, selectedDateStr);
+        closeModal();
+        renderCalendar(); renderDailyView(); renderStats();
+    }
+
+    // Events
+    document.getElementById('prevMonthBtn').addEventListener('click', () => { currentDisplayDate.setMonth(currentDisplayDate.getMonth()-1); renderCalendar(); renderDailyView(); });
+    document.getElementById('nextMonthBtn').addEventListener('click', () => { currentDisplayDate.setMonth(currentDisplayDate.getMonth()+1); renderCalendar(); renderDailyView(); });
+    document.getElementById('openAddBtn').addEventListener('click', openModal);
+    document.getElementById('saveExpenseBtn').addEventListener('click', handleSave);
+    document.getElementById('cancelModalBtn').addEventListener('click', closeModal);
+    document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+    document.getElementById('prevYearBtn').addEventListener('click', () => { statsYear--; renderStats(); });
+    document.getElementById('nextYearBtn').addEventListener('click', () => { statsYear++; renderStats(); });
+    
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const id = btn.getAttribute('data-tab');
+            document.getElementById('trackPanel').classList.toggle('active-panel', id === 'track');
+            document.getElementById('statsPanel').classList.toggle('active-panel', id === 'stats');
+            if(id === 'stats') renderStats(); else { renderCalendar(); renderDailyView(); }
+        });
+    });
+    
+    function escapeHtml(str) { return str.replace(/[&<>]/g, function(m){ if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
+    
+    // Bootstrap
+    loadExpenses();
+    const today = new Date();
+    currentDisplayDate = new Date(today.getFullYear(), today.getMonth(), 1);
+    selectedDateStr = today.toISOString().slice(0,10);
+    renderCalendar(); renderDailyView(); renderStats();
+    setTimeout(() => openModal(), 280);
+</script>
+</body>
+</html>
