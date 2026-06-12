@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>PursePal — Expense Tracker</title>
     
-    <!-- PWA + iPhone Home Screen Icons -->
     <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%233b82f6' rx='22'/%3E%3Ctext x='50' y='68' font-size='52' text-anchor='middle' fill='white' font-weight='bold'%3E💰%3C/text%3E%3C/svg%3E">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -594,309 +593,377 @@
 </div>
 
 <script>
-    const STORAGE_KEY = 'pursepal_expenses_final_today';
-    const CURRENCY_KEY = 'pursepal_currency';
-    
-    let expenses = [];
-    let currentCurrency = 'EUR';
-    let currentDisplayDate = new Date();
-    let selectedDateStr = '';
-    let statsYear = new Date().getFullYear();
-
-    function getTodayStr() {
-        const today = new Date();
-        return today.toISOString().slice(0,10);
-    }
-
-    function loadExpenses() {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if(stored) { 
-            try { 
-                expenses = JSON.parse(stored); 
-                if(!Array.isArray(expenses)) expenses = []; 
-            } catch(e) { expenses = []; }
-        } else { expenses = []; }
-    }
-    
-    function saveExpenses() { localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses)); }
-    
-    function loadCurrency() {
-        const saved = localStorage.getItem(CURRENCY_KEY);
-        if(saved === 'EUR' || saved === 'USD') currentCurrency = saved;
-        else currentCurrency = 'EUR';
-        updateCurrencyUI();
-    }
-    
-    function setCurrency(currency) {
-        currentCurrency = currency;
-        localStorage.setItem(CURRENCY_KEY, currency);
-        updateCurrencyUI();
-        refreshAllDisplays();
-    }
-    
-    function getCurrencySymbol() { return currentCurrency === 'EUR' ? '€' : '$'; }
-    
-    function updateCurrencyUI() {
-        document.querySelectorAll('.currency-btn').forEach(btn => {
-            if(btn.getAttribute('data-currency') === currentCurrency) btn.classList.add('active-currency');
-            else btn.classList.remove('active-currency');
-        });
-        document.getElementById('modalTitle').innerHTML = `➕ Add Expense (${getCurrencySymbol()})`;
-    }
-    
-    function formatMoney(amount) { return `${getCurrencySymbol()}${amount.toFixed(2)}`; }
-
-    function getExpensesForDate(dateStr) { return expenses.filter(e => e.dateStr === dateStr); }
-    function getTotalForDate(dateStr) { return getExpensesForDate(dateStr).reduce((s,e)=>s+e.amount,0); }
-
-    function addExpense(description, amount, dateStr) {
-        if(!description.trim()) description = "Expense";
-        if(isNaN(amount) || amount <= 0) return false;
-        expenses.push({ id: Date.now(), dateStr, description: description.trim().substring(0,48), amount: parseFloat(amount) });
-        saveExpenses();
-        return true;
-    }
-    
-    function deleteExpenseById(id) {
-        expenses = expenses.filter(e => e.id !== id);
-        saveExpenses();
-        refreshAllDisplays();
-    }
-
-    function getMonthCalendar(year, month) {
-        const firstDay = new Date(year, month, 1);
-        let startWeekday = firstDay.getDay();
-        let offset = (startWeekday === 0 ? 6 : startWeekday - 1);
-        const startDate = new Date(year, month, 1);
-        startDate.setDate(1 - offset);
-        let weeks = [];
-        let current = new Date(startDate);
-        for(let w=0; w<6; w++) {
-            let week = [];
-            for(let i=0;i<7;i++) {
-                let dateObj = new Date(current);
-                let dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')}`;
-                let amount = getTotalForDate(dateStr);
-                week.push({ dateObj, dateStr, amount, isCurrentMonth: dateObj.getMonth() === month });
-                current.setDate(current.getDate()+1);
-            }
-            weeks.push(week);
-            if(week[6].dateObj.getMonth() !== month && week[6].dateObj.getDate() > 7) break;
+    (function() {
+        // STORAGE KEYS
+        const STORAGE_KEY = 'pursepal_expenses_fixed_today';
+        const CURRENCY_KEY = 'pursepal_currency';
+        
+        let expenses = [];
+        let currentCurrency = 'EUR';
+        
+        // Get today's date as YYYY-MM-DD
+        function getTodayStr() {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
         }
-        return weeks;
-    }
-
-    function renderCalendar() {
-        const year = currentDisplayDate.getFullYear();
-        const month = currentDisplayDate.getMonth();
-        const weeks = getMonthCalendar(year, month);
-        const container = document.getElementById('calendarGrid');
-        container.innerHTML = '';
-        const symbol = getCurrencySymbol();
-        for(let week of weeks) {
-            const row = document.createElement('div'); row.className = 'week-row';
-            for(let day of week) {
-                const cell = document.createElement('div');
-                cell.className = `day-cell ${!day.isCurrentMonth ? 'other-month' : ''} ${selectedDateStr === day.dateStr ? 'selected-day' : ''}`;
-                const amtFmt = day.amount > 0 ? `${symbol}${day.amount.toFixed(0)}` : '';
-                cell.innerHTML = `<div class="day-number">${day.dateObj.getDate()}</div>${amtFmt ? `<div class="day-amount">${amtFmt}</div>` : ''}`;
-                cell.addEventListener('click', (e) => { 
-                    e.stopPropagation(); 
-                    selectedDateStr = day.dateStr; 
-                    renderCalendar(); 
-                    renderDailyView(); 
+        
+        // Get today's date components
+        function getToday() {
+            const today = new Date();
+            return {
+                year: today.getFullYear(),
+                month: today.getMonth(),
+                day: today.getDate(),
+                dateStr: getTodayStr()
+            };
+        }
+        
+        // State - initialized with TODAY
+        let currentDisplayYear = getToday().year;
+        let currentDisplayMonth = getToday().month;
+        let selectedDateStr = getTodayStr();
+        let statsYear = getToday().year;
+        
+        function loadExpenses() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if(stored) { 
+                try { 
+                    expenses = JSON.parse(stored); 
+                    if(!Array.isArray(expenses)) expenses = []; 
+                } catch(e) { expenses = []; }
+            } else { expenses = []; }
+        }
+        
+        function saveExpenses() { localStorage.setItem(STORAGE_KEY, JSON.stringify(expenses)); }
+        
+        function loadCurrency() {
+            const saved = localStorage.getItem(CURRENCY_KEY);
+            if(saved === 'EUR' || saved === 'USD') currentCurrency = saved;
+            else currentCurrency = 'EUR';
+            updateCurrencyUI();
+        }
+        
+        function setCurrency(currency) {
+            currentCurrency = currency;
+            localStorage.setItem(CURRENCY_KEY, currency);
+            updateCurrencyUI();
+            refreshAllDisplays();
+        }
+        
+        function getCurrencySymbol() { return currentCurrency === 'EUR' ? '€' : '$'; }
+        
+        function updateCurrencyUI() {
+            document.querySelectorAll('.currency-btn').forEach(btn => {
+                if(btn.getAttribute('data-currency') === currentCurrency) btn.classList.add('active-currency');
+                else btn.classList.remove('active-currency');
+            });
+            const modalTitle = document.getElementById('modalTitle');
+            if(modalTitle) modalTitle.innerHTML = `➕ Add Expense (${getCurrencySymbol()})`;
+        }
+        
+        function formatMoney(amount) { return `${getCurrencySymbol()}${amount.toFixed(2)}`; }
+        
+        function getExpensesForDate(dateStr) { return expenses.filter(e => e.dateStr === dateStr); }
+        function getTotalForDate(dateStr) { return getExpensesForDate(dateStr).reduce((s,e)=>s+e.amount,0); }
+        
+        function addExpense(description, amount, dateStr) {
+            if(!description.trim()) description = "Expense";
+            if(isNaN(amount) || amount <= 0) return false;
+            expenses.push({ id: Date.now(), dateStr, description: description.trim().substring(0,48), amount: parseFloat(amount) });
+            saveExpenses();
+            return true;
+        }
+        
+        function deleteExpenseById(id) {
+            expenses = expenses.filter(e => e.id !== id);
+            saveExpenses();
+            refreshAllDisplays();
+        }
+        
+        function getMonthCalendar(year, month) {
+            const firstDay = new Date(year, month, 1);
+            let startWeekday = firstDay.getDay();
+            let offset = (startWeekday === 0 ? 6 : startWeekday - 1);
+            const startDate = new Date(year, month, 1);
+            startDate.setDate(1 - offset);
+            let weeks = [];
+            let current = new Date(startDate);
+            for(let w=0; w<6; w++) {
+                let week = [];
+                for(let i=0;i<7;i++) {
+                    let dateObj = new Date(current);
+                    let dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')}`;
+                    let amount = getTotalForDate(dateStr);
+                    week.push({ dateObj, dateStr, amount, isCurrentMonth: dateObj.getMonth() === month });
+                    current.setDate(current.getDate()+1);
+                }
+                weeks.push(week);
+                if(week[6].dateObj.getMonth() !== month && week[6].dateObj.getDate() > 7) break;
+            }
+            return weeks;
+        }
+        
+        function renderCalendar() {
+            const year = currentDisplayYear;
+            const month = currentDisplayMonth;
+            const weeks = getMonthCalendar(year, month);
+            const container = document.getElementById('calendarGrid');
+            if(!container) return;
+            container.innerHTML = '';
+            const symbol = getCurrencySymbol();
+            for(let week of weeks) {
+                const row = document.createElement('div'); row.className = 'week-row';
+                for(let day of week) {
+                    const cell = document.createElement('div');
+                    cell.className = `day-cell ${!day.isCurrentMonth ? 'other-month' : ''} ${selectedDateStr === day.dateStr ? 'selected-day' : ''}`;
+                    const amtFmt = day.amount > 0 ? `${symbol}${day.amount.toFixed(0)}` : '';
+                    cell.innerHTML = `<div class="day-number">${day.dateObj.getDate()}</div>${amtFmt ? `<div class="day-amount">${amtFmt}</div>` : ''}`;
+                    cell.addEventListener('click', (e) => { 
+                        e.stopPropagation(); 
+                        selectedDateStr = day.dateStr; 
+                        renderCalendar(); 
+                        renderDailyView(); 
+                    });
+                    row.appendChild(cell);
+                }
+                container.appendChild(row);
+            }
+            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const monthLabel = document.getElementById('currentMonthLabel');
+            if(monthLabel) monthLabel.innerHTML = `${monthNames[month]} ${year}`;
+        }
+        
+        function renderDailyView() {
+            const exps = getExpensesForDate(selectedDateStr);
+            const total = exps.reduce((s,e)=>s+e.amount,0);
+            const dailyTotalSpan = document.getElementById('dailyTotalSpan');
+            if(dailyTotalSpan) dailyTotalSpan.innerHTML = formatMoney(total);
+            
+            const isToday = selectedDateStr === getTodayStr();
+            const displayDate = selectedDateStr.slice(5);
+            const title = isToday ? `📆 Today · ${displayDate}` : `📅 ${displayDate}`;
+            const titleElem = document.getElementById('selectedDateTitle');
+            if(titleElem) titleElem.innerText = title;
+            
+            const container = document.getElementById('expensesListContainer');
+            if(!container) return;
+            if(exps.length === 0) { 
+                container.innerHTML = `<div class="empty-day">💸 No expenses. Tap + to add.</div>`; 
+                return; 
+            }
+            container.innerHTML = '';
+            const symbol = getCurrencySymbol();
+            
+            exps.forEach(exp => {
+                const div = document.createElement('div'); 
+                div.className = 'expense-item';
+                div.innerHTML = `
+                    <span class="expense-desc">${escapeHtml(exp.description)}</span>
+                    <div class="expense-right">
+                        <span class="expense-amount">${symbol}${exp.amount.toFixed(2)}</span>
+                        <button class="delete-expense-btn" data-id="${exp.id}">🗑️</button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+            
+            document.querySelectorAll('.delete-expense-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const expenseId = parseInt(btn.getAttribute('data-id'));
+                    deleteExpenseById(expenseId);
                 });
-                row.appendChild(cell);
+            });
+        }
+        
+        function computeAdvancedStats(year) {
+            const yearExps = expenses.filter(e => parseInt(e.dateStr.split('-')[0]) === year);
+            if(yearExps.length === 0) return { yearTotal:0, monthlyAvg:0, bestMonth:'-', worstMonth:'-', highestDayAmount:0, highestDayStr:'', avgPerDay:0, totalEntries:0, activeDays:0, biggestExpenseAmt:0, avgPerEntry:0, monthlyTotals:{} };
+            let monthlyTotals = {}, dayTotals = {};
+            let biggestExpenseAmt = 0;
+            for(let exp of yearExps) {
+                let month = exp.dateStr.slice(0,7);
+                monthlyTotals[month] = (monthlyTotals[month] || 0) + exp.amount;
+                dayTotals[exp.dateStr] = (dayTotals[exp.dateStr] || 0) + exp.amount;
+                if(exp.amount > biggestExpenseAmt) biggestExpenseAmt = exp.amount;
             }
-            container.appendChild(row);
+            let monthEntries = Object.entries(monthlyTotals);
+            let best = monthEntries.length ? monthEntries.reduce((a,b)=> a[1]>b[1] ? a:b, ['',0]) : null;
+            let worst = monthEntries.length ? monthEntries.reduce((a,b)=> a[1]<b[1] ? a:b, ['',999999]) : null;
+            let highestDay = Object.entries(dayTotals).reduce((a,b)=> a[1]>b[1] ? a:b, ['',0]);
+            let yearTotal = yearExps.reduce((s,e)=>s+e.amount,0);
+            let activeDays = Object.keys(dayTotals).length;
+            let avgPerDay = activeDays ? yearTotal/activeDays : 0;
+            let monthlyAvg = monthEntries.length ? yearTotal/monthEntries.length : 0;
+            let avgPerEntry = yearExps.length ? yearTotal/yearExps.length : 0;
+            return { yearTotal, monthlyAvg, bestMonth: best ? `${best[0].slice(5)} (${formatMoney(best[1])})` : '-', worstMonth: worst ? `${worst[0].slice(5)} (${formatMoney(worst[1])})` : '-', highestDayAmount: highestDay[1], highestDayStr: highestDay[0], avgPerDay, totalEntries: yearExps.length, activeDays, biggestExpenseAmt, avgPerEntry, monthlyTotals };
         }
-        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        document.getElementById('currentMonthLabel').innerHTML = `${monthNames[month]} ${year}`;
-    }
-
-    function renderDailyView() {
-        const exps = getExpensesForDate(selectedDateStr);
-        const total = exps.reduce((s,e)=>s+e.amount,0);
-        document.getElementById('dailyTotalSpan').innerHTML = formatMoney(total);
-        const isToday = selectedDateStr === getTodayStr();
-        const displayDate = selectedDateStr.slice(5);
-        const title = isToday ? `📆 Today · ${displayDate}` : `📅 ${displayDate}`;
-        document.getElementById('selectedDateTitle').innerText = title;
-        const container = document.getElementById('expensesListContainer');
-        if(exps.length === 0) { 
-            container.innerHTML = `<div class="empty-day">💸 No expenses. Tap + to add.</div>`; 
-            return; 
-        }
-        container.innerHTML = '';
-        const symbol = getCurrencySymbol();
         
-        exps.forEach(exp => {
-            const div = document.createElement('div'); 
-            div.className = 'expense-item';
-            div.innerHTML = `
-                <span class="expense-desc">${escapeHtml(exp.description)}</span>
-                <div class="expense-right">
-                    <span class="expense-amount">${symbol}${exp.amount.toFixed(2)}</span>
-                    <button class="delete-expense-btn" data-id="${exp.id}">🗑️</button>
-                </div>
-            `;
-            container.appendChild(div);
+        function refreshAllDisplays() { renderCalendar(); renderDailyView(); renderStats(); }
+        
+        function renderStats() {
+            const stats = computeAdvancedStats(statsYear);
+            const symbol = getCurrencySymbol();
+            const elements = {
+                yearTotal: document.getElementById('yearTotal'),
+                monthlyAvg: document.getElementById('monthlyAvg'),
+                bestMonth: document.getElementById('bestMonth'),
+                worstMonth: document.getElementById('worstMonth'),
+                highestDay: document.getElementById('highestDay'),
+                avgDayStat: document.getElementById('avgDayStat'),
+                totalEntriesStat: document.getElementById('totalEntriesStat'),
+                activeDaysStat: document.getElementById('activeDaysStat'),
+                biggestExpense: document.getElementById('biggestExpense'),
+                avgPerEntry: document.getElementById('avgPerEntry'),
+                statsYearLabel: document.getElementById('statsYearLabel')
+            };
+            
+            if(elements.yearTotal) elements.yearTotal.innerHTML = `${symbol}${stats.yearTotal.toFixed(2)}`;
+            if(elements.monthlyAvg) elements.monthlyAvg.innerHTML = `${symbol}${stats.monthlyAvg.toFixed(2)}`;
+            if(elements.bestMonth) elements.bestMonth.innerHTML = stats.bestMonth;
+            if(elements.worstMonth) elements.worstMonth.innerHTML = stats.worstMonth;
+            if(elements.highestDay) elements.highestDay.innerHTML = stats.highestDayAmount > 0 ? `${symbol}${stats.highestDayAmount.toFixed(2)}` : `${symbol}0`;
+            if(elements.avgDayStat) elements.avgDayStat.innerHTML = `${symbol}${stats.avgPerDay.toFixed(2)}`;
+            if(elements.totalEntriesStat) elements.totalEntriesStat.innerHTML = stats.totalEntries;
+            if(elements.activeDaysStat) elements.activeDaysStat.innerHTML = stats.activeDays;
+            if(elements.biggestExpense) elements.biggestExpense.innerHTML = `${symbol}${stats.biggestExpenseAmt.toFixed(2)}`;
+            if(elements.avgPerEntry) elements.avgPerEntry.innerHTML = `${symbol}${stats.avgPerEntry.toFixed(2)}`;
+            if(elements.statsYearLabel) elements.statsYearLabel.innerText = statsYear;
+            
+            let monthsOrder = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+            let html = `<div style="font-weight:590; margin-bottom:8px; font-size:0.7rem; color:#8e8e98;">📅 Monthly spending (${statsYear})</div><div style="display:flex; flex-wrap:wrap; gap:6px; justify-content:center;">`;
+            for(let m of monthsOrder) {
+                let key = `${statsYear}-${m}`;
+                let total = stats.monthlyTotals[key] || 0;
+                let short = new Date(statsYear, parseInt(m)-1,1).toLocaleString('default',{month:'short'});
+                html += `<span>${short}: ${symbol}${total.toFixed(2)}</span>`;
+            }
+            html += `</div>`;
+            const breakdown = document.getElementById('monthlyBreakdown');
+            if(breakdown) breakdown.innerHTML = html;
+            
+            const insight = document.getElementById('insightMessage');
+            if(insight) insight.innerHTML = stats.totalEntries ? `✨ ${symbol}${stats.yearTotal.toFixed(2)} spent in ${statsYear}. Avg ${symbol}${stats.avgPerDay.toFixed(2)}/day.` : `✨ Add expenses to see insights.`;
+        }
+        
+        let currentAmountStr = "";
+        const amountInputField = document.getElementById('expenseAmountInput');
+        function buildNumpad() {
+            const pad = document.getElementById('numpadContainer');
+            if(!pad) return;
+            pad.innerHTML = '';
+            ['7','8','9','4','5','6','1','2','3','0','.', '⌫'].forEach(btn => {
+                const b = document.createElement('button');
+                b.innerText = btn;
+                b.addEventListener('click', () => {
+                    if(btn === '⌫') currentAmountStr = currentAmountStr.slice(0,-1);
+                    else if(btn === '.') { if(!currentAmountStr.includes('.')) currentAmountStr += '.'; }
+                    else currentAmountStr += btn;
+                    if(currentAmountStr === '') amountInputField.value = '';
+                    else if(currentAmountStr === '.') amountInputField.value = '0.';
+                    else amountInputField.value = currentAmountStr;
+                });
+                pad.appendChild(b);
+            });
+        }
+        
+        const modal = document.getElementById('expenseModal');
+        function openModal() { 
+            if(modal) modal.classList.add('active'); 
+            const descField = document.getElementById('expenseDesc');
+            if(descField) descField.value = ''; 
+            currentAmountStr = ''; 
+            if(amountInputField) amountInputField.value = ''; 
+            buildNumpad(); 
+        }
+        function closeModal() { if(modal) modal.classList.remove('active'); }
+        function handleSave() {
+            let desc = document.getElementById('expenseDesc')?.value.trim() || "";
+            if(!desc) desc = "Expense";
+            let amountVal = parseFloat(amountInputField?.value || "0");
+            if(isNaN(amountVal) || amountVal <= 0) { alert("Enter amount > 0"); return; }
+            addExpense(desc, amountVal, selectedDateStr);
+            closeModal();
+            refreshAllDisplays();
+        }
+        
+        // Event Listeners
+        const prevMonth = document.getElementById('prevMonthBtn');
+        const nextMonth = document.getElementById('nextMonthBtn');
+        if(prevMonth) prevMonth.addEventListener('click', () => { 
+            currentDisplayMonth--; 
+            if(currentDisplayMonth < 0) { currentDisplayMonth = 11; currentDisplayYear--; }
+            refreshAllDisplays(); 
+        });
+        if(nextMonth) nextMonth.addEventListener('click', () => { 
+            currentDisplayMonth++; 
+            if(currentDisplayMonth > 11) { currentDisplayMonth = 0; currentDisplayYear++; }
+            refreshAllDisplays(); 
         });
         
-        document.querySelectorAll('.delete-expense-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const expenseId = parseInt(btn.getAttribute('data-id'));
-                deleteExpenseById(expenseId);
+        const openBtn = document.getElementById('openAddBtn');
+        if(openBtn) openBtn.addEventListener('click', openModal);
+        
+        const saveBtn = document.getElementById('saveExpenseBtn');
+        if(saveBtn) saveBtn.addEventListener('click', handleSave);
+        
+        const cancelBtn = document.getElementById('cancelModalBtn');
+        if(cancelBtn) cancelBtn.addEventListener('click', closeModal);
+        
+        const closeBtn = document.getElementById('closeModalBtn');
+        if(closeBtn) closeBtn.addEventListener('click', closeModal);
+        
+        const prevYear = document.getElementById('prevYearBtn');
+        const nextYear = document.getElementById('nextYearBtn');
+        if(prevYear) prevYear.addEventListener('click', () => { statsYear--; renderStats(); });
+        if(nextYear) nextYear.addEventListener('click', () => { statsYear++; renderStats(); });
+        
+        document.querySelectorAll('.currency-btn').forEach(btn => {
+            btn.addEventListener('click', () => { setCurrency(btn.getAttribute('data-currency')); });
+        });
+        
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const id = btn.getAttribute('data-tab');
+                const trackPanel = document.getElementById('trackPanel');
+                const statsPanel = document.getElementById('statsPanel');
+                if(trackPanel) trackPanel.classList.toggle('active-panel', id === 'track');
+                if(statsPanel) statsPanel.classList.toggle('active-panel', id === 'stats');
+                if(id === 'stats') renderStats(); else refreshAllDisplays();
             });
         });
-    }
-
-    function computeAdvancedStats(year) {
-        const yearExps = expenses.filter(e => parseInt(e.dateStr.split('-')[0]) === year);
-        if(yearExps.length === 0) return { yearTotal:0, monthlyAvg:0, bestMonth:'-', worstMonth:'-', highestDayAmount:0, highestDayStr:'', avgPerDay:0, totalEntries:0, activeDays:0, biggestExpenseAmt:0, avgPerEntry:0, monthlyTotals:{} };
-        let monthlyTotals = {}, dayTotals = {};
-        let biggestExpenseAmt = 0;
-        for(let exp of yearExps) {
-            let month = exp.dateStr.slice(0,7);
-            monthlyTotals[month] = (monthlyTotals[month] || 0) + exp.amount;
-            dayTotals[exp.dateStr] = (dayTotals[exp.dateStr] || 0) + exp.amount;
-            if(exp.amount > biggestExpenseAmt) biggestExpenseAmt = exp.amount;
+        
+        function escapeHtml(str) { 
+            if(!str) return '';
+            return str.replace(/[&<>]/g, function(m){ 
+                if(m==='&') return '&amp;'; 
+                if(m==='<') return '&lt;'; 
+                if(m==='>') return '&gt;'; 
+                return m;
+            }); 
         }
-        let monthEntries = Object.entries(monthlyTotals);
-        let best = monthEntries.length ? monthEntries.reduce((a,b)=> a[1]>b[1] ? a:b, ['',0]) : null;
-        let worst = monthEntries.length ? monthEntries.reduce((a,b)=> a[1]<b[1] ? a:b, ['',999999]) : null;
-        let highestDay = Object.entries(dayTotals).reduce((a,b)=> a[1]>b[1] ? a:b, ['',0]);
-        let yearTotal = yearExps.reduce((s,e)=>s+e.amount,0);
-        let activeDays = Object.keys(dayTotals).length;
-        let avgPerDay = activeDays ? yearTotal/activeDays : 0;
-        let monthlyAvg = monthEntries.length ? yearTotal/monthEntries.length : 0;
-        let avgPerEntry = yearExps.length ? yearTotal/yearExps.length : 0;
-        return { yearTotal, monthlyAvg, bestMonth: best ? `${best[0].slice(5)} (${formatMoney(best[1])})` : '-', worstMonth: worst ? `${worst[0].slice(5)} (${formatMoney(worst[1])})` : '-', highestDayAmount: highestDay[1], highestDayStr: highestDay[0], avgPerDay, totalEntries: yearExps.length, activeDays, biggestExpenseAmt, avgPerEntry, monthlyTotals };
-    }
-
-    function refreshAllDisplays() { renderCalendar(); renderDailyView(); renderStats(); }
-
-    function renderStats() {
-        const stats = computeAdvancedStats(statsYear);
-        const symbol = getCurrencySymbol();
-        document.getElementById('yearTotal').innerHTML = `${symbol}${stats.yearTotal.toFixed(2)}`;
-        document.getElementById('monthlyAvg').innerHTML = `${symbol}${stats.monthlyAvg.toFixed(2)}`;
-        document.getElementById('bestMonth').innerHTML = stats.bestMonth;
-        document.getElementById('worstMonth').innerHTML = stats.worstMonth;
-        document.getElementById('highestDay').innerHTML = stats.highestDayAmount > 0 ? `${symbol}${stats.highestDayAmount.toFixed(2)}` : `${symbol}0`;
-        document.getElementById('avgDayStat').innerHTML = `${symbol}${stats.avgPerDay.toFixed(2)}`;
-        document.getElementById('totalEntriesStat').innerHTML = stats.totalEntries;
-        document.getElementById('activeDaysStat').innerHTML = stats.activeDays;
-        document.getElementById('biggestExpense').innerHTML = `${symbol}${stats.biggestExpenseAmt.toFixed(2)}`;
-        document.getElementById('avgPerEntry').innerHTML = `${symbol}${stats.avgPerEntry.toFixed(2)}`;
-        document.getElementById('statsYearLabel').innerText = statsYear;
         
-        let monthsOrder = ['01','02','03','04','05','06','07','08','09','10','11','12'];
-        let html = `<div style="font-weight:590; margin-bottom:8px; font-size:0.7rem; color:#8e8e98;">📅 Monthly spending (${statsYear})</div><div style="display:flex; flex-wrap:wrap; gap:6px; justify-content:center;">`;
-        for(let m of monthsOrder) {
-            let key = `${statsYear}-${m}`;
-            let total = stats.monthlyTotals[key] || 0;
-            let short = new Date(statsYear, parseInt(m)-1,1).toLocaleString('default',{month:'short'});
-            html += `<span>${short}: ${symbol}${total.toFixed(2)}</span>`;
+        // Initialize app with TODAY'S date
+        function init() {
+            const today = getToday();
+            currentDisplayYear = today.year;
+            currentDisplayMonth = today.month;
+            selectedDateStr = today.dateStr;
+            statsYear = today.year;
+            
+            loadExpenses();
+            loadCurrency();
+            refreshAllDisplays();
+            setTimeout(() => openModal(), 200);
         }
-        html += `</div>`;
-        document.getElementById('monthlyBreakdown').innerHTML = html;
-        document.getElementById('insightMessage').innerHTML = stats.totalEntries ? `✨ ${symbol}${stats.yearTotal.toFixed(2)} spent in ${statsYear}. Avg ${symbol}${stats.avgPerDay.toFixed(2)}/day.` : `✨ Add expenses to see insights.`;
-    }
-
-    let currentAmountStr = "";
-    const amountInputField = document.getElementById('expenseAmountInput');
-    function buildNumpad() {
-        const pad = document.getElementById('numpadContainer');
-        pad.innerHTML = '';
-        ['7','8','9','4','5','6','1','2','3','0','.', '⌫'].forEach(btn => {
-            const b = document.createElement('button');
-            b.innerText = btn;
-            b.addEventListener('click', () => {
-                if(btn === '⌫') currentAmountStr = currentAmountStr.slice(0,-1);
-                else if(btn === '.') { if(!currentAmountStr.includes('.')) currentAmountStr += '.'; }
-                else currentAmountStr += btn;
-                if(currentAmountStr === '') amountInputField.value = '';
-                else if(currentAmountStr === '.') amountInputField.value = '0.';
-                else amountInputField.value = currentAmountStr;
-            });
-            pad.appendChild(b);
-        });
-    }
-    
-    const modal = document.getElementById('expenseModal');
-    function openModal() { modal.classList.add('active'); document.getElementById('expenseDesc').value = ''; currentAmountStr = ''; amountInputField.value = ''; buildNumpad(); }
-    function closeModal() { modal.classList.remove('active'); }
-    function handleSave() {
-        let desc = document.getElementById('expenseDesc').value.trim();
-        if(!desc) desc = "Expense";
-        let amountVal = parseFloat(amountInputField.value);
-        if(isNaN(amountVal) || amountVal <= 0) { alert("Enter amount > 0"); return; }
-        addExpense(desc, amountVal, selectedDateStr);
-        closeModal();
-        refreshAllDisplays();
-    }
-
-    document.getElementById('prevMonthBtn').addEventListener('click', () => { currentDisplayDate.setMonth(currentDisplayDate.getMonth()-1); refreshAllDisplays(); });
-    document.getElementById('nextMonthBtn').addEventListener('click', () => { currentDisplayDate.setMonth(currentDisplayDate.getMonth()+1); refreshAllDisplays(); });
-    document.getElementById('openAddBtn').addEventListener('click', openModal);
-    document.getElementById('saveExpenseBtn').addEventListener('click', handleSave);
-    document.getElementById('cancelModalBtn').addEventListener('click', closeModal);
-    document.getElementById('closeModalBtn').addEventListener('click', closeModal);
-    document.getElementById('prevYearBtn').addEventListener('click', () => { statsYear--; renderStats(); });
-    document.getElementById('nextYearBtn').addEventListener('click', () => { statsYear++; renderStats(); });
-    
-    document.querySelectorAll('.currency-btn').forEach(btn => {
-        btn.addEventListener('click', () => { setCurrency(btn.getAttribute('data-currency')); });
-    });
-    
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            const id = btn.getAttribute('data-tab');
-            document.getElementById('trackPanel').classList.toggle('active-panel', id === 'track');
-            document.getElementById('statsPanel').classList.toggle('active-panel', id === 'stats');
-            if(id === 'stats') renderStats(); else refreshAllDisplays();
-        });
-    });
-    
-    function escapeHtml(str) { 
-        if(!str) return '';
-        return str.replace(/[&<>]/g, function(m){ 
-            if(m==='&') return '&amp;'; 
-            if(m==='<') return '&lt;'; 
-            if(m==='>') return '&gt;'; 
-            return m;
-        }); 
-    }
-    
-    // FIXED: Initialize everything with TODAY'S date
-    function initializeApp() {
-        const today = new Date();
-        const todayStr = getTodayStr();
         
-        // Set current display month to today's month
-        currentDisplayDate = new Date(today.getFullYear(), today.getMonth(), 1);
-        // Set selected date to today
-        selectedDateStr = todayStr;
-        // Set stats year to current year
-        statsYear = today.getFullYear();
-        
-        // Load data
-        loadExpenses();
-        loadCurrency();
-        
-        // Render everything
-        refreshAllDisplays();
-        
-        // Open modal for adding expense
-        setTimeout(() => openModal(), 200);
-    }
-    
-    // Start the app
-    initializeApp();
+        init();
+    })();
 </script>
 </body>
 </html>
