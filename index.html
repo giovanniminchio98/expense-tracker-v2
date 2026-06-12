@@ -11,8 +11,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="PursePal">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#f2f2f7" id="themeColorMeta">
-    <link rel="manifest" href="data:application/manifest+json,{%22name%22:%22PursePal%22,%22short_name%22:%22PursePal%22,%22start_url%22:%22.%22,%22display%22:%22standalone%22,%22background_color%22:%22%23f2f2f7%22,%22theme_color%22:%22%233b82f6%22,%22icons%22:[{%22src%22:%22data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%233b82f6' rx='22'/%3E%3Ctext x='50' y='68' font-size='52' text-anchor='middle' fill='white' font-weight='bold'%3E💰%3C/text%3E%3C/svg%3E%22,%22sizes%22:%22any%22,%22type%22:%22image/svg+xml%22}]}">
+    <meta name="theme-color" content="#0a0a0e">
+    <link rel="manifest" href="data:application/manifest+json,{%22name%22:%22PursePal%22,%22short_name%22:%22PursePal%22,%22start_url%22:%22.%22,%22display%22:%22standalone%22,%22background_color%22:%22%230a0a0e%22,%22theme_color%22:%22%233b82f6%22,%22icons%22:[{%22src%22:%22data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%233b82f6' rx='22'/%3E%3Ctext x='50' y='68' font-size='52' text-anchor='middle' fill='white' font-weight='bold'%3E💰%3C/text%3E%3C/svg%3E%22,%22sizes%22:%22any%22,%22type%22:%22image/svg+xml%22}]}">
     
     <style>
         * {
@@ -26,170 +26,13 @@
             font-size: 16px;
         }
 
+        /* DARK MODE ONLY - Full dark theme with white text */
         body {
-            font-family: -apple-system, 'SF Pro Text', 'Helvetica Neue', system-ui, Helvetica, sans-serif;
-            padding: 44px 12px 90px 12px;
-            transition: background 0.2s ease, color 0.2s ease;
-            min-height: 100vh;
-        }
-
-        /* ========== LIGHT THEME ========== */
-        body.light {
-            background: #f2f2f7;
-            color: #1c1c1e;
-        }
-        body.light .card,
-        body.light .daily-card,
-        body.light .modal-card {
-            background: white;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
-        }
-        body.light .day-cell {
-            background: #ffffff;
-            border: 0.5px solid #e9ecef;
-        }
-        body.light .day-cell.selected-day {
-            background: #dbeafe;
-            border: 2px solid #3b82f6;
-        }
-        body.light .stat-card {
-            background: #ffffff;
-            border: 0.5px solid #e9ecef;
-        }
-        body.light .expense-item {
-            background: #ffffff;
-            border: 0.5px solid #e9ecef;
-        }
-        body.light .current-month,
-        body.light .year-nav {
-            background: #eef2ff;
-        }
-        body.light .nav-btn {
-            background: white;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-        }
-        body.light .theme-selector,
-        body.light .tabs,
-        body.light .currency-selector {
-            background: rgba(255,255,255,0.8);
-        }
-        body.light .tab-btn.active {
-            background: #3b82f6;
-            color: white;
-        }
-        body.light .btn-primary {
-            background: #3b82f6;
-        }
-        body.light .fab {
-            background: #3b82f6;
-        }
-        body.light .expense-amount {
-            background: #fee2e2;
-            color: #dc2626;
-            font-weight: 700;
-        }
-
-        /* ========== DARK THEME ========== */
-        body.dark {
             background: #0a0a0e;
             color: #ffffff;
-        }
-        body.dark .card,
-        body.dark .daily-card,
-        body.dark .modal-card {
-            background: #1c1c24;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            border: 0.5px solid #2c2c34;
-        }
-        body.dark .day-cell {
-            background: #1c1c24;
-            border: 0.5px solid #2c2c34;
-            color: #e2e2e8;
-        }
-        body.dark .day-cell.other-month {
-            background: #14141a;
-            opacity: 0.7;
-        }
-        body.dark .day-cell.selected-day {
-            background: #2c4f8c;
-            border: 2px solid #3b82f6;
-        }
-        body.dark .day-cell.selected-day .day-number,
-        body.dark .day-cell.selected-day .day-amount {
-            color: white;
-        }
-        body.dark .day-amount {
-            background: #3a1212;
-            color: #ff6b6b;
-        }
-        body.dark .stat-card {
-            background: #1c1c24;
-            border: 0.5px solid #2c2c34;
-            color: #ffffff;
-        }
-        body.dark .stat-label {
-            color: #8e8e98;
-        }
-        body.dark .expense-item {
-            background: #1c1c24;
-            border: 0.5px solid #2c2c34;
-        }
-        body.dark .expense-amount {
-            background: #3a1212;
-            color: #ff6b6b;
-            font-weight: 700;
-        }
-        body.dark .current-month {
-            background: #2c2c34;
-            color: #ffffff;
-        }
-        body.dark .year-nav {
-            background: #2c2c34;
-        }
-        body.dark .nav-btn {
-            background: #2c2c34;
-            color: #ffffff;
-            box-shadow: none;
-        }
-        body.dark .theme-selector,
-        body.dark .tabs,
-        body.dark .currency-selector {
-            background: rgba(28,28,36,0.9);
-        }
-        body.dark .tab-btn.active {
-            background: #3b82f6;
-            color: white;
-        }
-        body.dark .theme-btn.active-theme,
-        body.dark .currency-btn.active-currency {
-            background: #3b82f6;
-            color: white;
-        }
-        body.dark .btn-primary {
-            background: #3b82f6;
-        }
-        body.dark .fab {
-            background: #3b82f6;
-        }
-        body.dark .delete-expense-btn {
-            color: #ff453a;
-        }
-        body.dark .insight-badge {
-            background: #1c1c24;
-            border: 0.5px solid #2c2c34;
-        }
-        body.dark #monthlyBreakdown span {
-            background: #2c2c34 !important;
-            color: #e2e2e8;
-        }
-        body.dark .modal-card input {
-            background: #2c2c34;
-            border-color: #3a3a42;
-            color: white;
-        }
-        body.dark .numpad button {
-            background: #2c2c34;
-            color: white;
+            font-family: -apple-system, 'SF Pro Text', 'Helvetica Neue', system-ui, Helvetica, sans-serif;
+            padding: 44px 12px 90px 12px;
+            min-height: 100vh;
         }
 
         .app-container {
@@ -206,7 +49,7 @@
         .app-title h1 {
             font-size: 2rem;
             font-weight: 700;
-            background: linear-gradient(135deg, #3b82f6, #1e40af);
+            background: linear-gradient(135deg, #60a5fa, #3b82f6);
             background-clip: text;
             -webkit-background-clip: text;
             color: transparent;
@@ -216,32 +59,22 @@
             font-size: 0.7rem;
             opacity: 0.6;
             margin-top: 2px;
-        }
-        body.dark .app-title h1 {
-            background: linear-gradient(135deg, #60a5fa, #3b82f6);
-            background-clip: text;
-            -webkit-background-clip: text;
+            color: #8e8e98;
         }
 
-        /* Top bar */
+        /* Top Bar - Tabs and Currency */
         .top-bar {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 16px;
-            flex-wrap: wrap;
-            gap: 8px;
+            gap: 10px;
         }
-        .left-controls {
-            display: flex;
-            gap: 8px;
-            flex: 1;
-        }
+        
         .tabs {
             display: flex;
-            gap: 6px;
-            background: rgba(255,255,255,0.8);
-            backdrop-filter: blur(10px);
+            gap: 8px;
+            background: #1c1c24;
             padding: 4px;
             border-radius: 50px;
             flex: 1;
@@ -250,66 +83,80 @@
             flex: 1;
             background: transparent;
             border: none;
-            padding: 8px 0;
+            padding: 10px 0;
             border-radius: 40px;
             font-weight: 590;
             font-size: 0.85rem;
             cursor: pointer;
             transition: 0.2s;
+            color: #8e8e98;
         }
-        .right-controls {
-            display: flex;
-            gap: 6px;
+        .tab-btn.active {
+            background: #3b82f6;
+            color: white;
         }
-        .theme-selector, .currency-selector {
+
+        .currency-selector {
             display: flex;
-            gap: 3px;
-            background: rgba(255,255,255,0.7);
-            backdrop-filter: blur(12px);
-            padding: 3px 5px;
+            gap: 4px;
+            background: #1c1c24;
+            padding: 4px 8px;
             border-radius: 50px;
         }
-        .theme-btn, .currency-btn {
+        .currency-btn {
             background: transparent;
             border: none;
-            padding: 5px 8px;
-            border-radius: 35px;
-            font-weight: 500;
-            font-size: 0.7rem;
+            padding: 8px 14px;
+            border-radius: 40px;
+            font-weight: 590;
+            font-size: 0.85rem;
             cursor: pointer;
             transition: 0.1s;
+            color: #8e8e98;
+        }
+        .currency-btn.active-currency {
+            background: #3b82f6;
+            color: white;
         }
 
         /* Panels */
-        .panel { display: none; animation: fadeIn 0.25s ease; }
-        .panel.active-panel { display: block; }
-        @keyframes fadeIn { from { opacity:0; transform:translateY(5px);} to { opacity:1; transform:translateY(0);} }
+        .panel {
+            display: none;
+            animation: fadeIn 0.25s ease;
+        }
+        .panel.active-panel {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
 
         /* Cards */
         .card, .daily-card {
+            background: #1c1c24;
+            border: 0.5px solid #2c2c34;
             border-radius: 24px;
-            padding: 14px 14px;
+            padding: 16px;
             margin-bottom: 16px;
-            transition: background 0.2s;
         }
 
-        /* Month header - compact */
+        /* Month Header */
         .month-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 12px;
-            flex-wrap: wrap;
-            gap: 6px;
+            margin-bottom: 16px;
         }
         .nav-group {
             display: flex;
             gap: 8px;
         }
         .nav-btn {
+            background: #2c2c34;
             border: none;
-            width: 38px;
-            height: 38px;
+            width: 40px;
+            height: 40px;
             border-radius: 30px;
             font-size: 1.2rem;
             font-weight: bold;
@@ -317,67 +164,120 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            color: #ffffff;
+        }
+        .nav-btn:active {
+            opacity: 0.7;
+            transform: scale(0.95);
         }
         .current-month {
+            background: #2c2c34;
+            color: #ffffff;
             font-weight: 590;
             font-size: 1rem;
-            padding: 6px 16px;
+            padding: 8px 20px;
             border-radius: 40px;
         }
 
-        /* Calendar - compact with smaller fonts */
+        /* Calendar - Compact */
         .weekdays {
             display: grid;
             grid-template-columns: repeat(7, 1fr);
             text-align: center;
             font-weight: 500;
-            margin-bottom: 6px;
-            font-size: 0.65rem;
+            margin-bottom: 8px;
+            font-size: 0.7rem;
             color: #8e8e93;
         }
-        .calendar-grid { display: flex; flex-direction: column; gap: 4px; }
-        .week-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+        .calendar-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .week-row {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+        }
         .day-cell {
+            background: #1c1c24;
+            border: 0.5px solid #2c2c34;
+            color: #ffffff;
             border-radius: 16px;
-            padding: 6px 2px;
+            padding: 8px 3px;
             text-align: center;
             font-size: 0.75rem;
             font-weight: 500;
             cursor: pointer;
             transition: 0.1s;
-            min-height: 52px;
+            min-height: 58px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
         }
-        .day-number { font-weight: 600; font-size: 0.85rem; }
+        .day-cell.other-month {
+            background: #14141a;
+            opacity: 0.6;
+        }
+        .day-cell.selected-day {
+            background: #2c4f8c;
+            border: 2px solid #3b82f6;
+        }
+        .day-number {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #ffffff;
+        }
         .day-amount {
             font-size: 0.55rem;
             font-weight: 600;
-            padding: 1px 4px;
+            padding: 2px 5px;
             border-radius: 20px;
-            margin-top: 2px;
+            margin-top: 3px;
+            background: #3a1212;
+            color: #ff6b6b;
         }
 
-        /* Expense list */
+        /* Daily Expenses List */
         .daily-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding-bottom: 10px;
+            padding-bottom: 12px;
             margin-bottom: 12px;
             font-weight: 590;
             font-size: 0.9rem;
-            border-bottom: 0.5px solid #c6c6c8;
+            border-bottom: 0.5px solid #2c2c34;
+            color: #ffffff;
         }
         .expense-item {
+            background: #1c1c24;
+            border: 0.5px solid #2c2c34;
+            border-radius: 18px;
+            padding: 12px 16px;
+            margin-bottom: 8px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-radius: 18px;
-            padding: 10px 14px;
-            margin-bottom: 6px;
+        }
+        .expense-desc {
+            color: #ffffff;
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
+        .expense-right {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .expense-amount {
+            padding: 5px 14px;
+            border-radius: 30px;
+            font-weight: 700;
+            font-size: 0.85rem;
+            background: #3a1212;
+            color: #ff6b6b;
         }
         .delete-expense-btn {
             background: transparent;
@@ -387,36 +287,56 @@
             border-radius: 30px;
             cursor: pointer;
             transition: 0.1s;
-            color: #ff3b30;
+            color: #ff453a;
         }
-        .expense-amount {
-            padding: 4px 12px;
-            border-radius: 25px;
-            font-weight: 700;
+        .delete-expense-btn:active {
+            opacity: 0.6;
+            transform: scale(0.95);
+        }
+        .empty-day {
+            text-align: center;
+            padding: 30px;
+            opacity: 0.6;
             font-size: 0.85rem;
+            color: #8e8e98;
         }
 
-        /* Stats - compact */
+        /* Stats Panel */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 8px;
+            gap: 10px;
             margin-bottom: 16px;
         }
         .stat-card {
+            background: #1c1c24;
+            border: 0.5px solid #2c2c34;
+            color: #ffffff;
             border-radius: 20px;
-            padding: 10px 4px;
+            padding: 12px 6px;
             text-align: center;
         }
-        .stat-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.3px; font-weight: 500; }
-        .stat-value { font-size: 1.1rem; font-weight: 650; margin-top: 3px; }
+        .stat-label {
+            font-size: 0.6rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 500;
+            color: #8e8e98;
+        }
+        .stat-value {
+            font-size: 1.2rem;
+            font-weight: 650;
+            margin-top: 5px;
+            color: #ffffff;
+        }
         .year-nav {
+            background: #2c2c34;
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 16px;
-            margin-bottom: 16px;
-            padding: 4px 14px;
+            gap: 20px;
+            margin-bottom: 20px;
+            padding: 6px 20px;
             border-radius: 50px;
             width: fit-content;
             margin-left: auto;
@@ -425,17 +345,46 @@
         .year-nav button {
             background: transparent;
             border: none;
-            font-size: 1rem;
+            font-size: 1.1rem;
             cursor: pointer;
-            padding: 6px 10px;
+            padding: 6px 12px;
             border-radius: 35px;
+            color: #ffffff;
+        }
+        .year-nav span {
+            color: #ffffff;
+            font-weight: 590;
+            font-size: 1rem;
+            padding: 4px 16px;
         }
         .insight-badge {
+            background: #1c1c24;
+            border: 0.5px solid #2c2c34;
+            color: #e2e2e8;
             border-radius: 20px;
-            padding: 10px;
-            margin-top: 10px;
+            padding: 12px;
+            margin-top: 12px;
             text-align: center;
             font-size: 0.75rem;
+        }
+        #monthlyBreakdown {
+            margin-top: 12px;
+            border-radius: 20px;
+            padding: 12px;
+            background: #1c1c24;
+        }
+        #monthlyBreakdown div:first-child {
+            color: #8e8e98;
+            margin-bottom: 8px;
+        }
+        #monthlyBreakdown span {
+            background: #2c2c34;
+            color: #e2e2e8;
+            padding: 5px 10px;
+            border-radius: 25px;
+            font-size: 0.7rem;
+            display: inline-block;
+            margin: 3px;
         }
 
         /* Modal */
@@ -445,7 +394,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0,0,0,0.8);
             backdrop-filter: blur(20px);
             display: flex;
             align-items: center;
@@ -455,73 +404,122 @@
             opacity: 0;
             transition: 0.2s;
         }
-        .modal.active { visibility: visible; opacity: 1; }
+        .modal.active {
+            visibility: visible;
+            opacity: 1;
+        }
         .modal-card {
             width: 90%;
             max-width: 380px;
-            border-radius: 40px;
-            padding: 20px 18px 24px;
+            border-radius: 44px;
+            padding: 24px 20px 28px;
             text-align: center;
+            background: #1c1c24;
+            border: 0.5px solid #2c2c34;
         }
-        .modal-card h3 { font-size: 1.4rem; margin-bottom: 14px; font-weight: 590; }
+        .modal-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 16px;
+            font-weight: 590;
+            color: #ffffff;
+        }
         .modal-card input {
             width: 100%;
-            padding: 12px 16px;
-            border-radius: 40px;
-            border: 0.5px solid #c6c6c8;
-            font-size: 0.95rem;
-            margin: 6px 0;
+            padding: 14px 18px;
+            border-radius: 44px;
+            border: 0.5px solid #3a3a42;
+            font-size: 1rem;
+            margin: 8px 0;
+            background: #2c2c34;
+            color: #ffffff;
+        }
+        .modal-card input::placeholder {
+            color: #8e8e98;
         }
         .numpad {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            margin: 14px 0;
+            gap: 10px;
+            margin: 18px 0;
         }
         .numpad button {
             border: none;
-            padding: 12px 0;
-            font-size: 1.3rem;
+            padding: 14px 0;
+            font-size: 1.4rem;
             font-weight: 500;
-            border-radius: 40px;
+            border-radius: 44px;
             cursor: pointer;
+            background: #2c2c34;
+            color: #ffffff;
+            transition: 0.05s;
+        }
+        .numpad button:active {
+            transform: scale(0.96);
+            background: #3a3a42;
         }
         .modal-buttons {
             display: flex;
-            gap: 10px;
-            margin: 10px 0 2px;
+            gap: 12px;
+            margin: 16px 0 6px;
         }
-        .btn-primary, .btn-secondary {
-            padding: 12px;
-            font-size: 0.9rem;
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+            padding: 14px;
+            font-size: 0.95rem;
             font-weight: 590;
             border: none;
-            border-radius: 40px;
+            border-radius: 44px;
             flex: 1;
             cursor: pointer;
         }
+        .btn-secondary {
+            background: #2c2c34;
+            color: #e2e2e8;
+            padding: 14px;
+            font-size: 0.95rem;
+            font-weight: 590;
+            border: none;
+            border-radius: 44px;
+            flex: 1;
+            cursor: pointer;
+        }
+        .close-icon {
+            background: none;
+            border: none;
+            margin-top: 8px;
+            font-size: 0.8rem;
+            opacity: 0.6;
+            cursor: pointer;
+            color: #8e8e98;
+        }
+
+        /* FAB Button */
         .fab {
             position: fixed;
             bottom: 24px;
             right: 20px;
-            width: 56px;
-            height: 56px;
+            width: 60px;
+            height: 60px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.6rem;
+            font-size: 1.8rem;
             border: none;
-            box-shadow: 0 4px 14px rgba(59,130,246,0.4);
+            box-shadow: 0 6px 16px rgba(59,130,246,0.5);
             cursor: pointer;
             z-index: 10;
             transition: 0.1s;
+            background: #3b82f6;
+            color: white;
         }
-        .fab:active { transform: scale(0.94); }
-        .small-note { font-size: 0.6rem; margin-top: 6px; opacity: 0.6; }
+        .fab:active {
+            transform: scale(0.94);
+        }
     </style>
 </head>
-<body class="light">
+<body>
 <div class="app-container">
     <!-- App Title -->
     <div class="app-title">
@@ -529,22 +527,15 @@
         <p>Smart expense tracker</p>
     </div>
 
+    <!-- Top Bar: Tabs + Currency -->
     <div class="top-bar">
-        <div class="left-controls">
-            <div class="tabs">
-                <button class="tab-btn active" data-tab="track">📆 Tracker</button>
-                <button class="tab-btn" data-tab="stats">📊 Stats</button>
-            </div>
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="track">📆 Tracker</button>
+            <button class="tab-btn" data-tab="stats">📊 Stats</button>
         </div>
-        <div class="right-controls">
-            <div class="currency-selector" id="currencySelector">
-                <button class="currency-btn" data-currency="EUR">€</button>
-                <button class="currency-btn" data-currency="USD">$</button>
-            </div>
-            <div class="theme-selector" id="themeSelector">
-                <button class="theme-btn" data-theme="light">☀️</button>
-                <button class="theme-btn" data-theme="dark">🌙</button>
-            </div>
+        <div class="currency-selector" id="currencySelector">
+            <button class="currency-btn" data-currency="EUR">€ EUR</button>
+            <button class="currency-btn" data-currency="USD">$ USD</button>
         </div>
     </div>
 
@@ -557,7 +548,7 @@
                     <button class="nav-btn" id="nextMonthBtn">▶</button>
                 </div>
                 <span class="current-month" id="currentMonthLabel">June 2026</span>
-                <div style="width: 38px;"></div>
+                <div style="width: 40px;"></div>
             </div>
             <div class="weekdays">
                 <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
@@ -568,10 +559,10 @@
         <div class="daily-card">
             <div class="daily-header">
                 <span id="selectedDateTitle">📅 Selected day</span>
-                <span id="dailyTotalSpan" style="font-weight: 650; font-size:0.9rem;">€0.00</span>
+                <span id="dailyTotalSpan" style="font-weight: 650;">€0.00</span>
             </div>
             <div id="expensesListContainer">
-                <div class="empty-day" style="text-align:center; padding:20px; opacity:0.6; font-size:0.8rem;">✨ No expenses for this day</div>
+                <div class="empty-day">✨ No expenses for this day</div>
             </div>
         </div>
     </div>
@@ -581,7 +572,7 @@
         <div class="card">
             <div class="year-nav">
                 <button id="prevYearBtn">◀</button>
-                <span id="statsYearLabel" style="font-weight:590; font-size:1rem; padding:4px 20px; border-radius:50px;">2026</span>
+                <span id="statsYearLabel">2026</span>
                 <button id="nextYearBtn">▶</button>
             </div>
             <div class="stats-grid">
@@ -596,7 +587,7 @@
                 <div class="stat-card"><div class="stat-label">💸 Biggest Expense</div><div class="stat-value" id="biggestExpense">€0</div></div>
                 <div class="stat-card"><div class="stat-label">🍀 Avg per Entry</div><div class="stat-value" id="avgPerEntry">€0</div></div>
             </div>
-            <div id="monthlyBreakdown" style="margin-top: 10px; border-radius: 20px; padding: 10px;"></div>
+            <div id="monthlyBreakdown"></div>
             <div class="insight-badge" id="insightMessage">✨ Tap + to add expenses</div>
         </div>
     </div>
@@ -607,27 +598,25 @@
 <!-- Modal -->
 <div class="modal" id="expenseModal">
     <div class="modal-card">
-        <h3 id="modalTitle">➕ Add</h3>
-        <input type="text" id="expenseDesc" placeholder="Description" autocomplete="off">
-        <input type="text" id="expenseAmountInput" placeholder="0.00" readonly style="font-size:1.3rem; text-align:center; font-weight:500;">
+        <h3 id="modalTitle">➕ Add Expense</h3>
+        <input type="text" id="expenseDesc" placeholder="Description (Coffee, Rent...)" autocomplete="off">
+        <input type="text" id="expenseAmountInput" placeholder="0.00" readonly style="font-size:1.4rem; text-align:center; font-weight:500;">
         <div class="numpad" id="numpadContainer"></div>
         <div class="modal-buttons">
             <button class="btn-primary" id="saveExpenseBtn">✓ Save</button>
             <button class="btn-secondary" id="cancelModalBtn">Cancel</button>
         </div>
-        <button class="close-icon" id="closeModalBtn" style="background:none; border:none; margin-top:4px; font-size:0.75rem; opacity:0.6; cursor:pointer;">✕ Close</button>
+        <button class="close-icon" id="closeModalBtn">✕ Close without adding</button>
     </div>
 </div>
 
 <script>
     // STORAGE
-    const STORAGE_KEY = 'pursepal_expenses_final_v3';
+    const STORAGE_KEY = 'pursepal_expenses_dark_fixed';
     const CURRENCY_KEY = 'pursepal_currency';
-    const THEME_KEY = 'pursepal_theme';
     
     let expenses = [];
     let currentCurrency = 'EUR';
-    let currentTheme = 'light';
 
     function loadExpenses() {
         const stored = localStorage.getItem(STORAGE_KEY);
@@ -662,7 +651,7 @@
             if(btn.getAttribute('data-currency') === currentCurrency) btn.classList.add('active-currency');
             else btn.classList.remove('active-currency');
         });
-        document.getElementById('modalTitle').innerHTML = `➕ Add (${getCurrencySymbol()})`;
+        document.getElementById('modalTitle').innerHTML = `➕ Add Expense (${getCurrencySymbol()})`;
     }
     
     function formatMoney(amount) { return `${getCurrencySymbol()}${amount.toFixed(2)}`; }
@@ -747,7 +736,7 @@
         document.getElementById('selectedDateTitle').innerText = title;
         const container = document.getElementById('expensesListContainer');
         if(exps.length === 0) { 
-            container.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.6; font-size:0.8rem;">💸 No expenses. Tap + to add.</div>`; 
+            container.innerHTML = `<div class="empty-day">💸 No expenses. Tap + to add.</div>`; 
             return; 
         }
         container.innerHTML = '';
@@ -757,8 +746,8 @@
             const div = document.createElement('div'); 
             div.className = 'expense-item';
             div.innerHTML = `
-                <span style="font-weight:500; font-size:0.85rem;">${escapeHtml(exp.description)}</span>
-                <div style="display:flex;gap:8px;align-items:center;">
+                <span class="expense-desc">${escapeHtml(exp.description)}</span>
+                <div class="expense-right">
                     <span class="expense-amount">${symbol}${exp.amount.toFixed(2)}</span>
                     <button class="delete-expense-btn" data-id="${exp.id}">🗑️</button>
                 </div>
@@ -814,13 +803,14 @@
         document.getElementById('biggestExpense').innerHTML = `${symbol}${stats.biggestExpenseAmt.toFixed(2)}`;
         document.getElementById('avgPerEntry').innerHTML = `${symbol}${stats.avgPerEntry.toFixed(2)}`;
         document.getElementById('statsYearLabel').innerText = statsYear;
+        
         let monthsOrder = ['01','02','03','04','05','06','07','08','09','10','11','12'];
-        let html = `<div style="font-weight:590; margin-bottom:6px; font-size:0.7rem;">📅 Monthly (${statsYear})</div><div style="display:flex; flex-wrap:wrap; gap:5px;">`;
+        let html = `<div style="font-weight:590; margin-bottom:8px; font-size:0.7rem; color:#8e8e98;">📅 Monthly spending (${statsYear})</div><div style="display:flex; flex-wrap:wrap; gap:6px; justify-content:center;">`;
         for(let m of monthsOrder) {
             let key = `${statsYear}-${m}`;
             let total = stats.monthlyTotals[key] || 0;
             let short = new Date(statsYear, parseInt(m)-1,1).toLocaleString('default',{month:'short'});
-            html += `<span style="padding:3px 8px; border-radius:25px; font-size:0.65rem;">${short}: ${symbol}${total.toFixed(2)}</span>`;
+            html += `<span>${short}: ${symbol}${total.toFixed(2)}</span>`;
         }
         html += `</div>`;
         document.getElementById('monthlyBreakdown').innerHTML = html;
@@ -847,6 +837,7 @@
             pad.appendChild(b);
         });
     }
+    
     const modal = document.getElementById('expenseModal');
     function openModal() { modal.classList.add('active'); document.getElementById('expenseDesc').value = ''; currentAmountStr = ''; amountInputField.value = ''; buildNumpad(); }
     function closeModal() { modal.classList.remove('active'); }
@@ -858,22 +849,6 @@
         addExpense(desc, amountVal, selectedDateStr);
         closeModal();
         refreshAllDisplays();
-    }
-
-    function setTheme(theme) {
-        currentTheme = theme;
-        document.body.className = theme;
-        localStorage.setItem(THEME_KEY, theme);
-        document.querySelectorAll('.theme-btn').forEach(btn => {
-            if(btn.getAttribute('data-theme') === theme) btn.classList.add('active-theme');
-            else btn.classList.remove('active-theme');
-        });
-    }
-    
-    function loadTheme() {
-        const saved = localStorage.getItem(THEME_KEY);
-        if(saved === 'light' || saved === 'dark') setTheme(saved);
-        else setTheme('light');
     }
 
     // Event Listeners
@@ -888,10 +863,6 @@
     
     document.querySelectorAll('.currency-btn').forEach(btn => {
         btn.addEventListener('click', () => { setCurrency(btn.getAttribute('data-currency')); });
-    });
-    
-    document.querySelectorAll('.theme-btn').forEach(btn => {
-        btn.addEventListener('click', () => { setTheme(btn.getAttribute('data-theme')); });
     });
     
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -918,7 +889,6 @@
     // Bootstrap
     loadExpenses();
     loadCurrency();
-    loadTheme();
     const today = new Date();
     currentDisplayDate = new Date(today.getFullYear(), today.getMonth(), 1);
     selectedDateStr = today.toISOString().slice(0,10);
