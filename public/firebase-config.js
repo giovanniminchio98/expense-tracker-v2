@@ -11,10 +11,11 @@
 // ---------------------------------------------------------------------------
 
 export const firebaseConfig = {
-  apiKey: "REPLACE_WITH_YOUR_API_KEY",
-  authDomain: "REPLACE_WITH_YOUR_PROJECT.firebaseapp.com",
-  projectId: "REPLACE_WITH_YOUR_PROJECT_ID",
-  storageBucket: "REPLACE_WITH_YOUR_PROJECT.appspot.com",
-  messagingSenderId: "REPLACE_WITH_YOUR_SENDER_ID",
-  appId: "REPLACE_WITH_YOUR_APP_ID",
+  apiKey: "AIzaSyAgU9dBttBEGaBo6nycNAGYnMeZZWNOXL0",
+  authDomain: "expenseapp-3bd03.firebaseapp.com",
+  projectId: "expenseapp-3bd03",
+  storageBucket: "expenseapp-3bd03.firebasestorage.app",
+  messagingSenderId: "516328816807",
+  appId: "1:516328816807:web:62ab9ad587e5d67329db82",
+  measurementId: "G-RRBXQ9F917",
 };
