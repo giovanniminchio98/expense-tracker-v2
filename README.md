@@ -91,6 +91,24 @@ npx serve public
 
 `localhost` is an authorized domain by default, so Google sign-in works locally.
 
+## Deploy on GitHub Pages (Firebase only for login)
+
+You can host the static files on **GitHub Pages** and still use Firebase only
+for Google sign-in. A workflow (`.github/workflows/deploy-pages.yml`) publishes
+the `public/` folder automatically.
+
+One-time setup:
+1. **Enable Pages:** repo **Settings → Pages → Build and deployment → Source:
+   GitHub Actions**.
+2. **Run the workflow:** push to the branch (or *Actions* tab → run it
+   manually). The app is served at
+   `https://giovanniminchio98.github.io/expense-tracker-v2/`.
+3. **Authorize the domain in Firebase:** Firebase Console → Authentication →
+   Settings → **Authorized domains** → **Add domain** →
+   `giovanniminchio98.github.io`.
+
+That last step is what lets Firebase login work from the GitHub Pages site.
+
 ## Deploy (optional, Firebase Hosting)
 
 ```bash
