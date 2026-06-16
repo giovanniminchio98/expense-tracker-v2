@@ -84,8 +84,8 @@ the domain(s) you serve the app from are listed:
 Because it uses ES modules, open it through a local web server (not `file://`):
 
 ```bash
-# any static server works, e.g.:
-npx serve public
+# any static server works, e.g. from the repo root:
+npx serve .
 # then open the printed http://localhost:xxxx URL
 ```
 
@@ -93,21 +93,21 @@ npx serve public
 
 ## Deploy on GitHub Pages (Firebase only for login)
 
-You can host the static files on **GitHub Pages** and still use Firebase only
-for Google sign-in. A workflow (`.github/workflows/deploy-pages.yml`) publishes
-the `public/` folder automatically.
+The app files live at the **repo root** (with an `index.html`), so GitHub Pages
+can serve them directly — no build step, no workflow.
 
 One-time setup:
-1. **Enable Pages:** repo **Settings → Pages → Build and deployment → Source:
-   GitHub Actions**.
-2. **Run the workflow:** push to the branch (or *Actions* tab → run it
-   manually). The app is served at
+1. **Enable Pages:** repo **Settings → Pages → Build and deployment →
+   Source: "Deploy from a branch"** → pick your branch → folder **`/ (root)`**
+   → **Save**.
+2. Wait ~1 minute. The app is served at
    `https://giovanniminchio98.github.io/expense-tracker-v2/`.
 3. **Authorize the domain in Firebase:** Firebase Console → Authentication →
    Settings → **Authorized domains** → **Add domain** →
    `giovanniminchio98.github.io`.
 
 That last step is what lets Firebase login work from the GitHub Pages site.
+(The empty `.nojekyll` file tells Pages to serve the files as-is.)
 
 ## Deploy (optional, Firebase Hosting)
 
@@ -118,20 +118,20 @@ firebase use --add        # pick your project
 firebase deploy --only hosting
 ```
 
-This serves the `public/` folder. After deploying, confirm the
-`*.web.app` domain is in the Authorized domains list (step 7).
+After deploying, confirm the `*.web.app` domain is in the Authorized domains
+list.
 
 ---
 
 ## Project layout
 
 ```
-public/
-  index.html          UI
-  styles.css          styling
-  app.js              main app logic (render, add/delete, sync)
-  auth.js             Firebase Google sign-in (+ Drive scope)
-  drive-store.js      read/write expenses.json in Drive appDataFolder
-  firebase-config.js  <-- paste your Firebase config here
-firebase.json         Firebase Hosting config
+index.html          calendar UI + modals
+styles.css          styling
+app.js              calendar, dial-pad add, day details, sync
+auth.js             Firebase Google sign-in (+ Drive scope)
+drive-store.js      read/write expenses.json in Drive appDataFolder
+firebase-config.js  your Firebase config
+firebase.json       Firebase Hosting config
+.nojekyll           serve files as-is on GitHub Pages
 ```
