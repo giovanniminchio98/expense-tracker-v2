@@ -27,22 +27,54 @@
       </button>
     </section>
 
-    <!-- Calendar view -->
+    <!-- App view -->
     <section id="app-view" class="hidden">
-      <div class="cal-toolbar">
-        <button id="prev-month" class="icon-btn" aria-label="Previous month">‹</button>
-        <h2 id="month-label"></h2>
-        <button id="next-month" class="icon-btn" aria-label="Next month">›</button>
+      <!-- Calendar panel -->
+      <div id="calendar-panel">
+        <div class="cal-toolbar">
+          <div class="nav-group">
+            <button id="prev-year" class="icon-btn" aria-label="Previous year">«</button>
+            <button id="prev-month" class="icon-btn" aria-label="Previous month">‹</button>
+          </div>
+          <h2 id="month-label"></h2>
+          <div class="nav-group">
+            <button id="next-month" class="icon-btn" aria-label="Next month">›</button>
+            <button id="next-year" class="icon-btn" aria-label="Next year">»</button>
+          </div>
+        </div>
+        <button id="today-btn" class="today-btn">Jump to today</button>
+        <div class="month-total">
+          <span>This month</span>
+          <strong id="month-total-value">€0.00</strong>
+        </div>
+        <div class="weekdays">
+          <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+        </div>
+        <div id="calendar" class="calendar"></div>
+        <p id="sync-status" class="sync-status"></p>
       </div>
-      <div class="month-total">
-        <span>This month</span>
-        <strong id="month-total-value">€0.00</strong>
+
+      <!-- Stats panel -->
+      <div id="stats-panel" class="hidden">
+        <h2>Statistics</h2>
+        <div class="stat-cards">
+          <div class="stat-card"><span>All time</span><strong id="stat-alltime">€0</strong></div>
+          <div class="stat-card"><span>This month</span><strong id="stat-thismonth">€0</strong></div>
+          <div class="stat-card"><span>Monthly avg</span><strong id="stat-avg">€0</strong></div>
+          <div class="stat-card"><span>Entries</span><strong id="stat-count">0</strong></div>
+        </div>
+        <h3>Last 6 months</h3>
+        <div id="stat-months" class="bars"></div>
+        <h3 id="stat-cat-title">By category</h3>
+        <div id="stat-cats" class="bars"></div>
+        <p id="stat-empty" class="empty hidden">No expenses yet.</p>
       </div>
-      <div class="weekdays">
-        <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
-      </div>
-      <div id="calendar" class="calendar"></div>
-      <p id="sync-status" class="sync-status"></p>
+
+      <!-- Tab bar -->
+      <nav class="tabbar">
+        <button id="tab-calendar" class="tab active">📅<span>Calendar</span></button>
+        <button id="tab-stats" class="tab">📊<span>Stats</span></button>
+      </nav>
     </section>
 
     <div id="loading" class="centered">
@@ -59,6 +91,7 @@
         <button id="add-close" class="icon-btn" aria-label="Close">✕</button>
       </div>
       <div id="amount-display" class="amount-display">€0</div>
+      <div id="cat-chips" class="cat-chips"></div>
       <input id="note-input" class="note-input" type="text" maxlength="60"
              placeholder="What was it for? (optional)" />
       <div class="dialpad">
