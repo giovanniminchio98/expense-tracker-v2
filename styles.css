@@ -57,6 +57,27 @@ body[data-theme="futuristic"] .topbar { background: rgba(8, 11, 26, 0.6); backdr
 body[data-theme="futuristic"] .btn-primary { box-shadow: var(--glow); }
 body[data-theme="futuristic"] .tab.active { box-shadow: var(--glow); }
 
+/* Animated multi-color nebula behind the neuron canvas (futuristic only) */
+body[data-theme="futuristic"]::before {
+  content: "";
+  position: fixed;
+  inset: -25%;
+  z-index: -2;
+  background:
+    radial-gradient(38% 48% at 18% 22%, rgba(99, 102, 241, 0.42), transparent 62%),
+    radial-gradient(42% 52% at 82% 28%, rgba(34, 211, 238, 0.34), transparent 62%),
+    radial-gradient(48% 50% at 62% 82%, rgba(236, 72, 153, 0.32), transparent 62%),
+    radial-gradient(40% 46% at 28% 78%, rgba(16, 185, 129, 0.28), transparent 62%),
+    radial-gradient(44% 44% at 50% 50%, rgba(168, 85, 247, 0.22), transparent 60%);
+  animation: nebula 26s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+@keyframes nebula {
+  0%   { transform: translate(-3%, -2%) scale(1)   rotate(0deg); }
+  50%  { transform: translate(3%, 2%)   scale(1.12) rotate(6deg); }
+  100% { transform: translate(-2%, 3%)  scale(1.06) rotate(-4deg); }
+}
+
 /* Neuron background canvas (only visible in futuristic theme) */
 #neuro-bg {
   position: fixed; inset: 0;

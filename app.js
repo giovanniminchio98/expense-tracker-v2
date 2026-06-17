@@ -115,43 +115,68 @@ function initTheme() {
   document.addEventListener("click", () => el("theme-menu").classList.add("hidden"));
 }
 
-// Animated neural-network background, only running in the futuristic theme.
+// Animated background for the futuristic theme: a neuron network layered over
+// a flowing "sand swarm" of particles (a flow field). Soft, colorful, alive.
 const neuro = (() => {
   const canvas = el("neuro-bg");
   const ctx = canvas.getContext("2d");
-  // A spread of soft, muted pastel colors (not neon) on the dark background.
-  const PALETTE = ["#9fb4d4", "#b3a7cf", "#cbb3c9", "#a9c8bd", "#d4c39a", "#a6c0d8", "#a3c7c2", "#c3bcd8"];
+  // Light pastels with a bit more color/contrast (still not neon).
+  const PALETTE = ["#8ab4ff", "#b18cff", "#ff9ad1", "#7fe0c0", "#ffd27f", "#7fd4ff", "#a0ffe0", "#c9a3ff"];
   const MAX_DIST = 150;
-  let nodes = [], raf = null, w = 0, h = 0;
+  let nodes = [], particles = [], raf = null, w = 0, h = 0, t = 0;
 
   function resize() {
     w = canvas.width = window.innerWidth;
     h = canvas.height = window.innerHeight;
   }
   function seed() {
-    // Denser field of neurons than before.
-    const count = Math.min(160, Math.floor((w * h) / 9000));
-    nodes = Array.from({ length: count }, () => ({
+    const nodeCount = Math.min(170, Math.floor((w * h) / 8500));
+    nodes = Array.from({ length: nodeCount }, () => ({
       x: Math.random() * w, y: Math.random() * h,
       vx: (Math.random() - 0.5) * 0.4, vy: (Math.random() - 0.5) * 0.4,
       color: PALETTE[Math.floor(Math.random() * PALETTE.length)],
     }));
+    const pCount = Math.min(320, Math.floor((w * h) / 4200));
+    particles = Array.from({ length: pCount }, () => ({
+      x: Math.random() * w, y: Math.random() * h,
+      sp: 0.35 + Math.random() * 0.9,
+      color: PALETTE[Math.floor(Math.random() * PALETTE.length)],
+    }));
+  }
+  // Cheap pseudo-noise flow field — drives the "moving sand" swarm.
+  function flowAngle(x, y) {
+    return (Math.sin(x * 0.006 + t) + Math.cos(y * 0.006 - t * 0.8)) * Math.PI;
   }
   function frame() {
+    t += 0.0016;
     ctx.clearRect(0, 0, w, h);
+
+    // Flow-field particle swarm (drawn first, behind the network)
+    ctx.globalAlpha = 0.4;
+    for (const p of particles) {
+      const a = flowAngle(p.x, p.y);
+      p.x += Math.cos(a) * p.sp;
+      p.y += Math.sin(a) * p.sp;
+      if (p.x < 0) p.x += w; else if (p.x > w) p.x -= w;
+      if (p.y < 0) p.y += h; else if (p.y > h) p.y -= h;
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x, p.y, 1.4, 1.4);
+    }
+
+    // Neuron movement
     for (const n of nodes) {
       n.x += n.vx; n.y += n.vy;
       if (n.x < 0 || n.x > w) n.vx *= -1;
       if (n.y < 0 || n.y > h) n.vy *= -1;
     }
-    // Links (light, colored by the source neuron, fading with distance)
+    // Links (colored by the source neuron, fading with distance)
     ctx.lineWidth = 1;
     for (let i = 0; i < nodes.length; i++) {
       for (let j = i + 1; j < nodes.length; j++) {
         const dx = nodes[i].x - nodes[j].x, dy = nodes[i].y - nodes[j].y;
         const dist = Math.hypot(dx, dy);
         if (dist < MAX_DIST) {
-          ctx.globalAlpha = (1 - dist / MAX_DIST) * 0.28;
+          ctx.globalAlpha = (1 - dist / MAX_DIST) * 0.36;
           ctx.strokeStyle = nodes[i].color;
           ctx.beginPath();
           ctx.moveTo(nodes[i].x, nodes[i].y);
@@ -160,12 +185,12 @@ const neuro = (() => {
         }
       }
     }
-    // Neurons (soft, no neon glow)
-    ctx.globalAlpha = 0.7;
+    // Neurons
+    ctx.globalAlpha = 0.88;
     for (const n of nodes) {
       ctx.fillStyle = n.color;
       ctx.beginPath();
-      ctx.arc(n.x, n.y, 2, 0, Math.PI * 2);
+      ctx.arc(n.x, n.y, 2.1, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
