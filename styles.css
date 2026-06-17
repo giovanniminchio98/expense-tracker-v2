@@ -33,17 +33,17 @@ body[data-theme="dark"] {
 body[data-theme="futuristic"] {
   --bg: #05060f;
   --card: rgba(18, 24, 48, 0.55);
-  --text: #d6f7ff;
-  --muted: #7aa6c2;
-  --primary: #22d3ee;
-  --primary-dark: #06b6d4;
-  --border: rgba(34, 211, 238, 0.35);
-  --danger: #fb7185;
-  --today: rgba(34, 211, 238, 0.16);
-  --has-exp: #22d3ee;
+  --text: #e6edf5;
+  --muted: #8ea0b8;
+  --primary: #7c93c9;
+  --primary-dark: #6478b0;
+  --border: rgba(160, 180, 212, 0.28);
+  --danger: #e8849a;
+  --today: rgba(124, 147, 201, 0.18);
+  --has-exp: #7c93c9;
   --radius: 16px;
-  --shadow: 0 0 14px rgba(34, 211, 238, 0.18);
-  --glow: 0 0 12px rgba(34, 211, 238, 0.35);
+  --shadow: 0 2px 14px rgba(0, 0, 0, 0.35);
+  --glow: none;
 }
 body[data-theme="futuristic"] .card,
 body[data-theme="futuristic"] .stat-card,

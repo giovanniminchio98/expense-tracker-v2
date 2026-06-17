@@ -98,8 +98,8 @@ function applyTheme(theme) {
   else neuro.stop();
 }
 function initTheme() {
-  let saved = "normal";
-  try { saved = localStorage.getItem(THEME_KEY) || "normal"; } catch {}
+  let saved = "futuristic";
+  try { saved = localStorage.getItem(THEME_KEY) || "futuristic"; } catch {}
   applyTheme(saved);
 
   el("theme-btn").addEventListener("click", (e) => {
@@ -119,6 +119,9 @@ function initTheme() {
 const neuro = (() => {
   const canvas = el("neuro-bg");
   const ctx = canvas.getContext("2d");
+  // A spread of soft, muted pastel colors (not neon) on the dark background.
+  const PALETTE = ["#9fb4d4", "#b3a7cf", "#cbb3c9", "#a9c8bd", "#d4c39a", "#a6c0d8", "#a3c7c2", "#c3bcd8"];
+  const MAX_DIST = 150;
   let nodes = [], raf = null, w = 0, h = 0;
 
   function resize() {
@@ -126,10 +129,12 @@ const neuro = (() => {
     h = canvas.height = window.innerHeight;
   }
   function seed() {
-    const count = Math.min(60, Math.floor((w * h) / 22000));
+    // Denser field of neurons than before.
+    const count = Math.min(160, Math.floor((w * h) / 9000));
     nodes = Array.from({ length: count }, () => ({
       x: Math.random() * w, y: Math.random() * h,
       vx: (Math.random() - 0.5) * 0.4, vy: (Math.random() - 0.5) * 0.4,
+      color: PALETTE[Math.floor(Math.random() * PALETTE.length)],
     }));
   }
   function frame() {
@@ -139,13 +144,15 @@ const neuro = (() => {
       if (n.x < 0 || n.x > w) n.vx *= -1;
       if (n.y < 0 || n.y > h) n.vy *= -1;
     }
+    // Links (light, colored by the source neuron, fading with distance)
+    ctx.lineWidth = 1;
     for (let i = 0; i < nodes.length; i++) {
       for (let j = i + 1; j < nodes.length; j++) {
         const dx = nodes[i].x - nodes[j].x, dy = nodes[i].y - nodes[j].y;
         const dist = Math.hypot(dx, dy);
-        if (dist < 130) {
-          ctx.strokeStyle = `rgba(34,211,238,${(1 - dist / 130) * 0.35})`;
-          ctx.lineWidth = 1;
+        if (dist < MAX_DIST) {
+          ctx.globalAlpha = (1 - dist / MAX_DIST) * 0.28;
+          ctx.strokeStyle = nodes[i].color;
           ctx.beginPath();
           ctx.moveTo(nodes[i].x, nodes[i].y);
           ctx.lineTo(nodes[j].x, nodes[j].y);
@@ -153,12 +160,15 @@ const neuro = (() => {
         }
       }
     }
+    // Neurons (soft, no neon glow)
+    ctx.globalAlpha = 0.7;
     for (const n of nodes) {
-      ctx.fillStyle = "rgba(125,249,255,0.9)";
+      ctx.fillStyle = n.color;
       ctx.beginPath();
-      ctx.arc(n.x, n.y, 1.8, 0, Math.PI * 2);
+      ctx.arc(n.x, n.y, 2, 0, Math.PI * 2);
       ctx.fill();
     }
+    ctx.globalAlpha = 1;
     raf = requestAnimationFrame(frame);
   }
   function start() {
