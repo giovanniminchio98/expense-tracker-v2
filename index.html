@@ -3,17 +3,44 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Expense Tracker</title>
+  <title>PulsePal</title>
+
+  <!-- App icons / install metadata -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/png" href="icon-192.png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <meta name="theme-color" content="#05060f" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="PulsePal" />
+
+  <!-- Futuristic display font for the brand -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet" />
+
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <canvas id="neuro-bg"></canvas>
+
   <header class="topbar">
-    <h1>💸 Expenses</h1>
-    <div id="user-area" class="user-area hidden">
-      <img id="user-photo" class="avatar" alt="" referrerpolicy="no-referrer" />
-      <button id="logout-btn" class="btn btn-ghost">Sign out</button>
+    <h1 class="brand">PulsePal</h1>
+    <div class="topbar-right">
+      <button id="theme-btn" class="icon-btn" aria-label="Theme">🎨</button>
+      <div id="user-area" class="user-area hidden">
+        <img id="user-photo" class="avatar" alt="" referrerpolicy="no-referrer" />
+        <button id="logout-btn" class="btn btn-ghost">Sign out</button>
+      </div>
     </div>
   </header>
+
+  <div id="theme-menu" class="theme-menu hidden">
+    <button data-theme="normal">☀️ Normal</button>
+    <button data-theme="dark">🌙 Dark</button>
+    <button data-theme="futuristic">🧠 Futuristic</button>
+  </div>
 
   <main>
     <!-- Login view -->
@@ -27,22 +54,66 @@
       </button>
     </section>
 
-    <!-- Calendar view -->
+    <!-- App view -->
     <section id="app-view" class="hidden">
-      <div class="cal-toolbar">
-        <button id="prev-month" class="icon-btn" aria-label="Previous month">‹</button>
-        <h2 id="month-label"></h2>
-        <button id="next-month" class="icon-btn" aria-label="Next month">›</button>
+      <!-- Calendar panel -->
+      <div id="calendar-panel">
+        <div class="cal-toolbar">
+          <div class="nav-group">
+            <button id="prev-year" class="icon-btn" aria-label="Previous year">«</button>
+            <button id="prev-month" class="icon-btn" aria-label="Previous month">‹</button>
+          </div>
+          <button id="month-label" class="month-label"></button>
+          <div class="nav-group">
+            <button id="next-month" class="icon-btn" aria-label="Next month">›</button>
+            <button id="next-year" class="icon-btn" aria-label="Next year">»</button>
+          </div>
+          <div id="month-popover" class="popover hidden">
+            <input type="month" id="month-input" />
+          </div>
+        </div>
+        <button id="today-btn" class="today-btn">Jump to today</button>
+        <div class="month-total">
+          <span>This month</span>
+          <strong id="month-total-value">€0.00</strong>
+        </div>
+        <div class="weekdays">
+          <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+        </div>
+        <div id="calendar" class="calendar"></div>
+        <p id="sync-status" class="sync-status"></p>
       </div>
-      <div class="month-total">
-        <span>This month</span>
-        <strong id="month-total-value">€0.00</strong>
+
+      <!-- Stats panel -->
+      <div id="stats-panel" class="hidden">
+        <h2>Statistics</h2>
+        <div class="stat-cards">
+          <div class="stat-card"><span>All time</span><strong id="stat-alltime">€0</strong></div>
+          <div class="stat-card"><span>This month</span><strong id="stat-thismonth">€0</strong></div>
+          <div class="stat-card"><span>Monthly avg</span><strong id="stat-avg">€0</strong></div>
+          <div class="stat-card"><span>Entries</span><strong id="stat-count">0</strong></div>
+        </div>
+        <h3 id="stat-cat-title">By category</h3>
+        <div id="stat-cats" class="bars"></div>
+        <h3>Month by month</h3>
+        <div id="stat-months" class="bars scroll-list"></div>
+        <p id="stat-empty" class="empty hidden">No expenses yet.</p>
       </div>
-      <div class="weekdays">
-        <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+
+      <!-- Math panel -->
+      <div id="math-panel" class="hidden">
+        <h2>Advanced stats</h2>
+        <p class="math-note">Computed over all your expenses.</p>
+        <div id="math-list"></div>
+        <p id="math-empty" class="empty hidden">Add some expenses to see the math.</p>
       </div>
-      <div id="calendar" class="calendar"></div>
-      <p id="sync-status" class="sync-status"></p>
+
+      <!-- Tab bar -->
+      <nav class="tabbar">
+        <button id="tab-calendar" class="tab active">📅<span>Calendar</span></button>
+        <button id="tab-stats" class="tab">📊<span>Stats</span></button>
+        <button id="tab-math" class="tab">🧮<span>Math</span></button>
+      </nav>
     </section>
 
     <div id="loading" class="centered">
@@ -59,6 +130,7 @@
         <button id="add-close" class="icon-btn" aria-label="Close">✕</button>
       </div>
       <div id="amount-display" class="amount-display">€0</div>
+      <div id="cat-chips" class="cat-chips"></div>
       <input id="note-input" class="note-input" type="text" maxlength="60"
              placeholder="What was it for? (optional)" />
       <div class="dialpad">
