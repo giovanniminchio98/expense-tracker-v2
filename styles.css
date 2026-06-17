@@ -109,6 +109,15 @@ body {
   border-bottom: 1px solid var(--border);
 }
 .topbar h1 { font-size: 1.15rem; margin: 0; }
+.brand {
+  font-family: "Orbitron", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  background: linear-gradient(90deg, #8ab4ff, #b18cff 45%, #ff9ad1);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
 .topbar-right { display: flex; align-items: center; gap: 8px; }
 .user-area { display: flex; align-items: center; gap: 10px; }
 .avatar { width: 30px; height: 30px; border-radius: 50%; }
@@ -418,7 +427,8 @@ h2 { font-size: 1.05rem; margin: 0; }
 
 .amount-display {
   text-align: center;
-  font-size: 2.6rem;
+  font-family: "Orbitron", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 2.5rem;
   font-weight: 700;
   padding: 10px 0;
   letter-spacing: 1px;

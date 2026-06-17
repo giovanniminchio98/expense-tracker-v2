@@ -32,6 +32,7 @@ let activeDate = null;
 let selectedCategory = "food";
 let dayModalDate = null;
 let entered = false;
+let syncing = false;
 
 // --- Drive token cache (so a reopened web app doesn't re-prompt for login) ---
 const TOKEN_KEY = "et_drive_token";
@@ -46,6 +47,22 @@ function getCachedToken() {
   return null;
 }
 function clearCachedToken() { try { localStorage.removeItem(TOKEN_KEY); } catch {} }
+
+// --- Local copy of the expenses (so the app opens instantly, offline-capable,
+//     and never gates the UI behind a fresh Google token). ---
+const LOCAL_KEY = "et_expenses";
+function saveLocal() { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(expenses)); } catch {} }
+function loadLocal() {
+  try { const a = JSON.parse(localStorage.getItem(LOCAL_KEY) || "[]"); return Array.isArray(a) ? a : []; }
+  catch { return []; }
+}
+function clearLocal() { try { localStorage.removeItem(LOCAL_KEY); } catch {} }
+
+// "Dirty" = local has changes not yet written to Drive.
+const DIRTY_KEY = "et_dirty";
+function setDirty() { try { localStorage.setItem(DIRTY_KEY, "1"); } catch {} }
+function clearDirty() { try { localStorage.removeItem(DIRTY_KEY); } catch {} }
+function isDirty() { try { return localStorage.getItem(DIRTY_KEY) === "1"; } catch { return false; } }
 
 // --- Utilities ---
 const pad = (n) => String(n).padStart(2, "0");
@@ -560,25 +577,77 @@ async function removeExpense(id) {
 }
 
 // =====================================================================
-//  Persistence
+//  Persistence (local-first, with transparent Drive sync)
 // =====================================================================
+
+// Obtain a fresh Google token. Must be called from a user gesture (save/delete)
+// so the sign-in popup is allowed. Usually skips the account chooser.
+async function ensureToken() {
+  try {
+    const { accessToken, user } = await signIn();
+    if (accessToken) { store.setAccessToken(accessToken); cacheToken(accessToken); setUserUI(user); return true; }
+  } catch (e) {
+    if (e?.code !== "auth/popup-closed-by-user") console.error(e);
+  }
+  return false;
+}
+
 async function persist() {
+  saveLocal();
+  setDirty();
   el("sync-status").textContent = "Saving…";
+  // Ensure a fresh token BEFORE any await, so the popup (if needed) opens
+  // within the user gesture that triggered this save.
+  if (getCachedToken()) {
+    store.setAccessToken(getCachedToken());
+  } else {
+    const ok = await ensureToken();
+    if (!ok) { el("sync-status").textContent = "Saved on this device"; return; }
+  }
   try {
     await store.save(expenses);
+    clearDirty();
     el("sync-status").textContent = "Saved to Drive";
   } catch (err) {
     if (err instanceof store.AuthExpiredError) {
       clearCachedToken();
-      el("sync-status").textContent = "";
-      toast("Session expired — please sign in again");
-      entered = false;
-      show("login");
-      return;
+      if (await ensureToken()) {
+        try { await store.save(expenses); clearDirty(); el("sync-status").textContent = "Saved to Drive"; return; }
+        catch (e) { console.error(e); }
+      }
+    } else {
+      console.error(err);
     }
-    console.error(err);
-    el("sync-status").textContent = "Save failed";
-    toast("Could not save to Drive");
+    el("sync-status").textContent = "Saved on this device";
+  }
+}
+
+// On open: reconcile the local copy with Drive (push if we have unsynced local
+// changes, otherwise pull the latest). Runs only when we already hold a fresh
+// token — never blocks the UI or forces a login.
+let initialSyncDone = false;
+async function initialSync() {
+  if (syncing || !getCachedToken()) return;
+  syncing = true;
+  store.setAccessToken(getCachedToken());
+  try {
+    if (isDirty()) {
+      await store.save(expenses);
+      clearDirty();
+      el("sync-status").textContent = "Synced with Drive";
+    } else {
+      const remote = await store.load();
+      expenses = remote;
+      saveLocal();
+      refreshAll();
+      el("sync-status").textContent = "Synced with Drive";
+    }
+    initialSyncDone = true;
+  } catch (err) {
+    if (err instanceof store.AuthExpiredError) clearCachedToken();
+    // otherwise keep the local copy silently
+  } finally {
+    syncing = false;
   }
 }
 
@@ -588,36 +657,39 @@ async function persist() {
 async function handleSignIn() {
   el("login-btn").disabled = true;
   try {
-    const { accessToken } = await signIn();
-    if (!accessToken) { toast("Google did not return Drive access — try again"); el("login-btn").disabled = false; return; }
+    const { accessToken, user } = await signIn();
+    if (!accessToken) { toast("Google didn't return Drive access — try again"); el("login-btn").disabled = false; return; }
     store.setAccessToken(accessToken);
     cacheToken(accessToken);
-    await enterApp(true);
+    setUserUI(user);
+    enterAppLocal(true);
+    initialSync();
   } catch (err) {
-    console.error(err);
-    if (err?.code !== "auth/popup-closed-by-user") toast("Sign-in failed");
+    if (err?.code !== "auth/popup-closed-by-user") { console.error(err); toast("Sign-in failed"); }
     el("login-btn").disabled = false;
   }
 }
-async function enterApp(promptToday) {
-  if (entered) return;
-  show("loading");
-  try {
-    expenses = await store.load();
-  } catch (err) {
-    if (err instanceof store.AuthExpiredError) { clearCachedToken(); show("login"); return; }
-    console.error(err);
-    toast("Could not load your data");
+
+// Show the app immediately from the local copy (no waiting on Google).
+function enterAppLocal(promptToday) {
+  if (!entered) {
+    entered = true;
+    const now = new Date();
+    viewYear = now.getFullYear();
+    viewMonth = now.getMonth();
+    switchTab("calendar");
   }
-  entered = true;
-  const now = new Date();
-  viewYear = now.getFullYear();
-  viewMonth = now.getMonth();
-  switchTab("calendar");
   renderCalendar();
   show("app");
   if (promptToday) openAddModal(todayKey());
 }
+
+function refreshAll() {
+  renderCalendar();
+  if (!el("stats-panel").classList.contains("hidden")) renderStats();
+  if (!el("math-panel").classList.contains("hidden")) renderMath();
+}
+
 function setUserUI(user) { if (user && user.photoURL) el("user-photo").src = user.photoURL; }
 
 // =====================================================================
@@ -647,6 +719,8 @@ function init() {
   el("login-btn").addEventListener("click", handleSignIn);
   el("logout-btn").addEventListener("click", async () => {
     clearCachedToken();
+    clearLocal();
+    clearDirty();
     entered = false;
     expenses = [];
     store.setAccessToken(null);
@@ -690,20 +764,28 @@ function init() {
   el("day-add").addEventListener("click", () => openAddModal(dayModalDate));
   el("day-modal").addEventListener("click", (e) => { if (e.target.id === "day-modal") closeDayModal(); });
 
-  // Restore a cached Drive token so a reopened web app skips the login screen.
+  // Local-first boot: open straight to the calendar from the local copy (and
+  // always offer to add today's expense). Sync with Drive in the background.
+  expenses = loadLocal();
   const cached = getCachedToken();
-  if (cached) { store.setAccessToken(cached); enterApp(false); }
+  if (cached) store.setAccessToken(cached);
+  if (cached || expenses.length) {
+    enterAppLocal(true);
+    initialSync();
+  }
 
   watchAuth((user) => {
     setUserUI(user);
-    if (store.hasAccessToken()) return;
-    const heading = el("login-view").querySelector("h2");
+    if (entered) return;
     if (user) {
-      heading.textContent = `Welcome back${user.displayName ? ", " + user.displayName.split(" ")[0] : ""}`;
-      el("login-btn").lastChild.textContent = " Continue with Google";
+      // Returning user whose local copy was cleared: still go straight in.
+      enterAppLocal(true);
+      initialSync();
+    } else {
+      // Brand-new (or signed out): show the login screen.
+      show("login");
+      el("login-btn").disabled = false;
     }
-    show("login");
-    el("login-btn").disabled = false;
   });
 }
 

@@ -1,6 +1,6 @@
 {
-  "name": "Expense Tracker",
-  "short_name": "Expenses",
+  "name": "PulsePal",
+  "short_name": "PulsePal",
   "description": "Track expenses on a calendar, with stats. Data stays in your own Google Drive.",
   "start_url": ".",
   "scope": ".",
