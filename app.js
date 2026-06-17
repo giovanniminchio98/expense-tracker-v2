@@ -359,6 +359,29 @@ function renderStats() {
     .sort((a, b) => b.value - a.value);
   renderBars(el("stat-cats"), catRows, "No expenses this month.");
 
+  // Chart: monthly totals for the viewed year
+  el("chart-months-title").textContent = `Monthly totals — ${viewYear}`;
+  const nowM = now.getMonth(), nowY = now.getFullYear();
+  const monthlyChart = MONTHS_SHORT.map((m, idx) => ({
+    short: m[0],
+    label: `${m} ${viewYear}`,
+    value: byMonth[`${viewYear}-${pad(idx + 1)}`] || 0,
+  }));
+  const hi = viewYear === nowY ? nowM : -1;
+  el("chart-months").innerHTML = barChartSVG(monthlyChart, { highlightIndex: hi });
+
+  // Chart: totals by year
+  const byYear = {};
+  for (const e of expenses) {
+    const y = e.date.slice(0, 4);
+    byYear[y] = (byYear[y] || 0) + Number(e.amount || 0);
+  }
+  const yearChart = Object.keys(byYear).sort()
+    .map((y) => ({ short: y, label: y, value: byYear[y] }));
+  el("chart-years").innerHTML = yearChart.length
+    ? barChartSVG(yearChart, { highlightIndex: yearChart.findIndex((r) => r.short === String(nowY)) })
+    : `<p class="empty">No data yet.</p>`;
+
   // Month by month (all months, newest first)
   const monthRows = Object.keys(byMonth)
     .sort((a, b) => b.localeCompare(a))
@@ -367,6 +390,29 @@ function renderStats() {
       return { label: `${MONTHS_SHORT[m - 1]} ${y}`, value: byMonth[k] };
     });
   renderBars(el("stat-months"), monthRows, "No data yet.");
+}
+
+// Minimal dependency-free SVG bar chart (scales to container width, theme-aware).
+function barChartSVG(rows, { highlightIndex = -1 } = {}) {
+  const W = 320, H = 150, padT = 12, padB = 22, padX = 6;
+  const n = rows.length || 1;
+  const max = Math.max(1, ...rows.map((r) => r.value));
+  const chartH = H - padT - padB;
+  const bw = (W - padX * 2) / n;
+  const innerW = Math.min(bw * 0.66, 40);
+  const baseY = padT + chartH;
+  let svg = "";
+  rows.forEach((r, i) => {
+    const h = (r.value / max) * chartH;
+    const x = padX + i * bw + (bw - innerW) / 2;
+    const y = baseY - h;
+    const fill = i === highlightIndex ? "var(--primary)" : "var(--has-exp)";
+    const op = r.value > 0 ? 1 : 0.18;
+    svg += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${innerW.toFixed(1)}" height="${Math.max(0, h).toFixed(1)}" rx="2" fill="${fill}" opacity="${op}"><title>${r.label}: ${fmtMoney(r.value)}</title></rect>`;
+    svg += `<text x="${(x + innerW / 2).toFixed(1)}" y="${H - 7}" text-anchor="middle" font-size="9" fill="var(--muted)">${r.short ?? ""}</text>`;
+  });
+  svg += `<line x1="${padX}" y1="${baseY}" x2="${W - padX}" y2="${baseY}" stroke="var(--border)" stroke-width="1"/>`;
+  return `<svg viewBox="0 0 ${W} ${H}" class="chart" role="img">${svg}</svg>`;
 }
 
 function renderBars(container, rows, emptyMsg) {
@@ -807,6 +853,9 @@ function init() {
   el("save-expense").addEventListener("click", saveExpense);
   document.querySelectorAll(".dialpad .key").forEach((btn) => btn.addEventListener("click", () => pressKey(btn.dataset.key)));
   el("add-modal").addEventListener("click", (e) => { if (e.target.id === "add-modal") closeAddModal(); });
+
+  // Quick add (floating button) — adds for today
+  el("fab-add").addEventListener("click", () => openAddModal(todayKey()));
 
   // Day modal
   el("day-close").addEventListener("click", closeDayModal);
