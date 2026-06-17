@@ -57,6 +57,9 @@ function fmtMoney(n) {
   return new Intl.NumberFormat(undefined, { style: "currency", currency: "EUR" }).format(n || 0);
 }
 const fmtMoneyShort = (n) => "€" + Math.round(n || 0);
+// Variance is in squared currency units, so it gets its own unit (€²).
+const fmtSqEuro = (n) =>
+  new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(n || 0) + " €²";
 function fmtDateLabel(key) {
   const [y, m, d] = key.split("-").map(Number);
   return new Date(y, m - 1, d).toLocaleDateString(undefined, {
@@ -374,7 +377,7 @@ function renderMath() {
       ["Mean per expense", fmtMoney(m)],
       ["Median expense", fmtMoney(median(amounts))],
       ["Std deviation", fmtMoney(sd)],
-      ["Variance", fmtMoney(sd * sd)],
+      ["Variance", fmtSqEuro(sd * sd)],
       ["Coeff. of variation", cv.toFixed(0) + "%"],
       ["Smallest", fmtMoney(Math.min(...amounts))],
       ["Largest", fmtMoney(Math.max(...amounts))],
