@@ -381,7 +381,16 @@ h2 { font-size: 1.05rem; margin: 0; }
   white-space: nowrap;
 }
 
-.sync-status { text-align: center; font-size: 0.78rem; color: var(--muted); margin-top: 14px; min-height: 1em; }
+.sync-status { text-align: center; font-size: 0.78rem; color: var(--muted); margin-top: 14px; min-height: 1.2em; }
+.mini-spin {
+  display: inline-block;
+  width: 11px; height: 11px;
+  vertical-align: -1px;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
 
 /* Buttons */
 .btn {

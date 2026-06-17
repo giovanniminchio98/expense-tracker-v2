@@ -86,22 +86,26 @@ async function createFile(content) {
   return data.id;
 }
 
-// Public: load the array of expenses for the current user.
-export async function load() {
+// Public: load the saved document { expenses, deleted } for the current user.
+// `deleted` is a map of id -> deletion timestamp (ms) used to merge safely.
+export async function loadDoc() {
   fileId = await findFile();
-  if (!fileId) return [];
+  if (!fileId) return { expenses: [], deleted: {} };
   const res = await request(`${DRIVE_API}/files/${fileId}?alt=media`);
   try {
     const data = await res.json();
-    return Array.isArray(data.expenses) ? data.expenses : [];
+    return {
+      expenses: Array.isArray(data.expenses) ? data.expenses : [],
+      deleted: data.deleted && typeof data.deleted === "object" ? data.deleted : {},
+    };
   } catch {
-    return [];
+    return { expenses: [], deleted: {} };
   }
 }
 
-// Public: persist the full array of expenses for the current user.
-export async function save(expenses) {
-  const content = { version: 1, expenses };
+// Public: persist the full document for the current user.
+export async function saveDoc(doc) {
+  const content = { version: 2, expenses: doc.expenses || [], deleted: doc.deleted || {} };
   if (!fileId) {
     fileId = await findFile();
   }

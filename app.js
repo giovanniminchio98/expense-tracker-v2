@@ -26,43 +26,82 @@ const WEEKDAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
 // --- State ---
 let expenses = [];
+let deleted = {};                  // id -> deletion timestamp (ms), for safe merges
 let viewYear, viewMonth;
 let amountStr = "";
 let activeDate = null;
 let selectedCategory = "food";
 let dayModalDate = null;
 let entered = false;
-let syncing = false;
 
-// --- Drive token cache (so a reopened web app doesn't re-prompt for login) ---
+// --- Drive token (kept in memory first; localStorage is a best-effort cache so
+//     a reopened app can skip the popup, but we never depend on it). ---
 const TOKEN_KEY = "et_drive_token";
-function cacheToken(token) {
-  try { localStorage.setItem(TOKEN_KEY, JSON.stringify({ token, exp: Date.now() + 55 * 60 * 1000 })); } catch {}
+let memToken = null, memExp = 0;
+function setToken(t) {
+  memToken = t; memExp = Date.now() + 55 * 60 * 1000;
+  store.setAccessToken(t);
+  try { localStorage.setItem(TOKEN_KEY, JSON.stringify({ token: t, exp: memExp })); } catch {}
 }
-function getCachedToken() {
+function getToken() {
+  if (memToken && memExp > Date.now()) return memToken;
   try {
     const o = JSON.parse(localStorage.getItem(TOKEN_KEY) || "null");
-    if (o && o.token && o.exp > Date.now()) return o.token;
+    if (o && o.token && o.exp > Date.now()) { memToken = o.token; memExp = o.exp; store.setAccessToken(o.token); return o.token; }
   } catch {}
   return null;
 }
-function clearCachedToken() { try { localStorage.removeItem(TOKEN_KEY); } catch {} }
-
-// --- Local copy of the expenses (so the app opens instantly, offline-capable,
-//     and never gates the UI behind a fresh Google token). ---
-const LOCAL_KEY = "et_expenses";
-function saveLocal() { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(expenses)); } catch {} }
-function loadLocal() {
-  try { const a = JSON.parse(localStorage.getItem(LOCAL_KEY) || "[]"); return Array.isArray(a) ? a : []; }
-  catch { return []; }
+function clearToken() {
+  memToken = null; memExp = 0;
+  store.setAccessToken(null);
+  try { localStorage.removeItem(TOKEN_KEY); } catch {}
 }
-function clearLocal() { try { localStorage.removeItem(LOCAL_KEY); } catch {} }
 
-// "Dirty" = local has changes not yet written to Drive.
+// --- Local copy of the document (so the app opens instantly and never loses
+//     data even if Drive is briefly unreachable). ---
+const LOCAL_KEY = "et_doc";
+function localDoc() { return { expenses, deleted }; }
+function saveLocal() { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(localDoc())); } catch {} }
+function loadLocal() {
+  try {
+    const d = JSON.parse(localStorage.getItem(LOCAL_KEY) || "null");
+    if (d && Array.isArray(d.expenses)) return { expenses: d.expenses, deleted: d.deleted || {} };
+  } catch {}
+  // migrate any older "et_expenses" array if present
+  try {
+    const old = JSON.parse(localStorage.getItem("et_expenses") || "null");
+    if (Array.isArray(old)) return { expenses: old, deleted: {} };
+  } catch {}
+  return { expenses: [], deleted: {} };
+}
+function clearLocal() { try { localStorage.removeItem(LOCAL_KEY); localStorage.removeItem("et_expenses"); } catch {} }
+
+// "Dirty" = local has changes not yet confirmed saved to Drive.
 const DIRTY_KEY = "et_dirty";
 function setDirty() { try { localStorage.setItem(DIRTY_KEY, "1"); } catch {} }
 function clearDirty() { try { localStorage.removeItem(DIRTY_KEY); } catch {} }
 function isDirty() { try { return localStorage.getItem(DIRTY_KEY) === "1"; } catch { return false; } }
+
+// Merge two documents without losing data: union expenses by id (newest wins),
+// union deletion tombstones (latest wins), and drop expenses that were deleted
+// after their last update.
+function mergeDocs(a, b) {
+  const del = {};
+  for (const src of [a.deleted || {}, b.deleted || {}])
+    for (const id in src) del[id] = Math.max(del[id] || 0, src[id] || 0);
+
+  const byId = {};
+  const tOf = (e) => Date.parse(e.updatedAt || e.createdAt || 0) || 0;
+  for (const e of [...(a.expenses || []), ...(b.expenses || [])]) {
+    if (!e || !e.id) continue;
+    if (!byId[e.id] || tOf(e) >= tOf(byId[e.id])) byId[e.id] = e;
+  }
+  const merged = Object.values(byId).filter((e) => {
+    const dt = del[e.id];
+    return !dt || tOf(e) > dt;   // keep only if re-added after the deletion
+  });
+  return { expenses: merged, deleted: del };
+}
 
 // --- Utilities ---
 const pad = (n) => String(n).padStart(2, "0");
@@ -513,13 +552,15 @@ function pressKey(key) {
 async function saveExpense() {
   const amount = parseFloat(amountStr);
   if (!(amount > 0)) { toast("Enter an amount"); return; }
+  const now = new Date().toISOString();
   expenses.push({
     id: crypto.randomUUID(),
     date: activeDate,
     amount,
     category: selectedCategory,
     note: el("note-input").value.trim(),
-    createdAt: new Date().toISOString(),
+    createdAt: now,
+    updatedAt: now,
   });
   closeAddModal();
   renderCalendar();
@@ -571,84 +612,93 @@ function renderDayModal(dateKey) {
 function closeDayModal() { el("day-modal").classList.add("hidden"); dayModalDate = null; }
 async function removeExpense(id) {
   expenses = expenses.filter((e) => e.id !== id);
+  deleted[id] = Date.now();          // tombstone so the deletion survives merges
   renderCalendar();
   if (dayModalDate) renderDayModal(dayModalDate);
   await persist();
 }
 
 // =====================================================================
-//  Persistence (local-first, with transparent Drive sync)
+//  Persistence (local-first; Drive sync is always load-merge-save)
 // =====================================================================
+
+function setStatus(state) {
+  const e = el("sync-status");
+  const spin = '<span class="mini-spin"></span> ';
+  if (state === "saving") e.innerHTML = spin + "Saving…";
+  else if (state === "syncing") e.innerHTML = spin + "Syncing…";
+  else if (state === "saved") e.textContent = "✓ Saved to Drive";
+  else if (state === "synced") e.textContent = "✓ Synced with Drive";
+  else if (state === "local") e.textContent = "• Saved on this device — will sync";
+  else e.textContent = "";
+}
 
 // Obtain a fresh Google token. Must be called from a user gesture (save/delete)
 // so the sign-in popup is allowed. Usually skips the account chooser.
 async function ensureToken() {
   try {
     const { accessToken, user } = await signIn();
-    if (accessToken) { store.setAccessToken(accessToken); cacheToken(accessToken); setUserUI(user); return true; }
+    if (accessToken) { setToken(accessToken); setUserUI(user); return true; }
   } catch (e) {
     if (e?.code !== "auth/popup-closed-by-user") console.error(e);
   }
   return false;
 }
 
+function applyDoc(doc) {
+  expenses = doc.expenses;
+  deleted = doc.deleted;
+  saveLocal();
+  refreshAll();
+}
+
+// Serialize all Drive access so a save and a background sync can't race and
+// clobber each other.
+let chain = Promise.resolve();
+function lock(fn) {
+  const p = chain.then(fn, fn);
+  chain = p.catch(() => {});
+  return p;
+}
+
+// The ONLY path that writes to Drive. It always reads remote first and merges,
+// so it can never overwrite data it hasn't seen. If we can't get a token, the
+// data stays safely on this device (marked dirty) and syncs later.
+function syncNow(isSave) {
+  return lock(async () => {
+    setStatus(isSave ? "saving" : "syncing");
+    if (!getToken()) {
+      const ok = await ensureToken();
+      if (!ok) { setStatus("local"); return; }
+    }
+    const attempt = async () => {
+      const remote = await store.loadDoc();
+      const merged = mergeDocs(remote, localDoc());
+      applyDoc(merged);
+      await store.saveDoc(merged);
+      clearDirty();
+      setStatus(isSave ? "saved" : "synced");
+    };
+    try {
+      await attempt();
+    } catch (err) {
+      if (err instanceof store.AuthExpiredError) {
+        clearToken();
+        if (await ensureToken()) {
+          try { await attempt(); return; } catch (e) { console.error(e); }
+        }
+      } else {
+        console.error(err);
+      }
+      setStatus("local");
+    }
+  });
+}
+
 async function persist() {
   saveLocal();
   setDirty();
-  el("sync-status").textContent = "Saving…";
-  // Ensure a fresh token BEFORE any await, so the popup (if needed) opens
-  // within the user gesture that triggered this save.
-  if (getCachedToken()) {
-    store.setAccessToken(getCachedToken());
-  } else {
-    const ok = await ensureToken();
-    if (!ok) { el("sync-status").textContent = "Saved on this device"; return; }
-  }
-  try {
-    await store.save(expenses);
-    clearDirty();
-    el("sync-status").textContent = "Saved to Drive";
-  } catch (err) {
-    if (err instanceof store.AuthExpiredError) {
-      clearCachedToken();
-      if (await ensureToken()) {
-        try { await store.save(expenses); clearDirty(); el("sync-status").textContent = "Saved to Drive"; return; }
-        catch (e) { console.error(e); }
-      }
-    } else {
-      console.error(err);
-    }
-    el("sync-status").textContent = "Saved on this device";
-  }
-}
-
-// On open: reconcile the local copy with Drive (push if we have unsynced local
-// changes, otherwise pull the latest). Runs only when we already hold a fresh
-// token — never blocks the UI or forces a login.
-let initialSyncDone = false;
-async function initialSync() {
-  if (syncing || !getCachedToken()) return;
-  syncing = true;
-  store.setAccessToken(getCachedToken());
-  try {
-    if (isDirty()) {
-      await store.save(expenses);
-      clearDirty();
-      el("sync-status").textContent = "Synced with Drive";
-    } else {
-      const remote = await store.load();
-      expenses = remote;
-      saveLocal();
-      refreshAll();
-      el("sync-status").textContent = "Synced with Drive";
-    }
-    initialSyncDone = true;
-  } catch (err) {
-    if (err instanceof store.AuthExpiredError) clearCachedToken();
-    // otherwise keep the local copy silently
-  } finally {
-    syncing = false;
-  }
+  await syncNow(true);
 }
 
 // =====================================================================
@@ -659,11 +709,10 @@ async function handleSignIn() {
   try {
     const { accessToken, user } = await signIn();
     if (!accessToken) { toast("Google didn't return Drive access — try again"); el("login-btn").disabled = false; return; }
-    store.setAccessToken(accessToken);
-    cacheToken(accessToken);
+    setToken(accessToken);
     setUserUI(user);
     enterAppLocal(true);
-    initialSync();
+    syncNow(false);
   } catch (err) {
     if (err?.code !== "auth/popup-closed-by-user") { console.error(err); toast("Sign-in failed"); }
     el("login-btn").disabled = false;
@@ -718,12 +767,12 @@ function init() {
 
   el("login-btn").addEventListener("click", handleSignIn);
   el("logout-btn").addEventListener("click", async () => {
-    clearCachedToken();
+    clearToken();
     clearLocal();
     clearDirty();
     entered = false;
     expenses = [];
-    store.setAccessToken(null);
+    deleted = {};
     await logout();
     show("login");
     el("login-btn").disabled = false;
@@ -766,21 +815,26 @@ function init() {
 
   // Local-first boot: open straight to the calendar from the local copy (and
   // always offer to add today's expense). Sync with Drive in the background.
-  expenses = loadLocal();
-  const cached = getCachedToken();
-  if (cached) store.setAccessToken(cached);
-  if (cached || expenses.length) {
+  const doc = loadLocal();
+  expenses = doc.expenses;
+  deleted = doc.deleted;
+  const token = getToken();
+  if (token || expenses.length) {
     enterAppLocal(true);
-    initialSync();
+    if (token) syncNow(false);   // load-merge-save brings any Drive data back
   }
 
   watchAuth((user) => {
     setUserUI(user);
-    if (entered) return;
+    if (entered) {
+      // Now that we know who's signed in, make sure we've synced at least once.
+      if (getToken()) syncNow(false);
+      return;
+    }
     if (user) {
       // Returning user whose local copy was cleared: still go straight in.
       enterAppLocal(true);
-      initialSync();
+      syncNow(false);
     } else {
       // Brand-new (or signed out): show the login screen.
       show("login");
