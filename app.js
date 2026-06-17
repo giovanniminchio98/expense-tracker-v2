@@ -47,6 +47,9 @@ function show(view) {
   el("login-view").classList.toggle("hidden", view !== "login");
   el("app-view").classList.toggle("hidden", view !== "app");
   el("loading").classList.toggle("hidden", view !== "loading");
+  // The top-right user area (avatar + Sign out) belongs only to the calendar
+  // screen, so it can never appear next to the login button.
+  el("user-area").classList.toggle("hidden", view !== "app");
 }
 
 function toast(msg) {
@@ -265,13 +268,8 @@ async function enterApp() {
 }
 
 function setUserUI(user) {
-  const area = el("user-area");
-  if (user) {
-    if (user.photoURL) el("user-photo").src = user.photoURL;
-    area.classList.remove("hidden");
-  } else {
-    area.classList.add("hidden");
-  }
+  // Only sets the avatar image; visibility is controlled by show().
+  if (user && user.photoURL) el("user-photo").src = user.photoURL;
 }
 
 // --- Init ---
@@ -315,6 +313,11 @@ function init() {
     if (user && store.hasAccessToken()) return;
     // No user, or restored session without a Drive token (page reload):
     // user must sign in to re-authorize Drive access.
+    const heading = el("login-view").querySelector("h2");
+    if (user) {
+      heading.textContent = `Welcome back${user.displayName ? ", " + user.displayName.split(" ")[0] : ""}`;
+      el("login-btn").lastChild.textContent = " Continue with Google";
+    }
     show("login");
     el("login-btn").disabled = false;
   });
