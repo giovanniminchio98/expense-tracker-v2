@@ -133,6 +133,7 @@ function show(view) {
   el("app-view").classList.toggle("hidden", view !== "app");
   el("loading").classList.toggle("hidden", view !== "loading");
   el("user-area").classList.toggle("hidden", view !== "app");
+  el("refresh-btn").classList.toggle("hidden", view !== "app");
 }
 
 function toast(msg) {
@@ -703,11 +704,14 @@ async function removeExpense(id) {
 function setStatus(state) {
   const e = el("sync-status");
   const spin = '<span class="mini-spin"></span> ';
+  e.classList.remove("status-ok", "status-warn");
   if (state === "saving") e.innerHTML = spin + "Saving…";
   else if (state === "syncing") e.innerHTML = spin + "Syncing…";
-  else if (state === "saved") e.textContent = "✓ Saved to Drive";
-  else if (state === "synced") e.textContent = "✓ Synced with Drive";
-  else if (state === "local") e.textContent = "• Saved on this device — will sync";
+  else if (state === "saved") { e.textContent = "✓ Saved to Drive"; e.classList.add("status-ok"); }
+  else if (state === "synced") { e.textContent = "✓ Connected — synced with Drive"; e.classList.add("status-ok"); }
+  else if (state === "local") { e.textContent = "• Saved on this device — will sync"; e.classList.add("status-warn"); }
+  else if (state === "offline") { e.textContent = "⚠ Offline — saved on this device, will sync"; e.classList.add("status-warn"); }
+  else if (state === "signin") { e.textContent = "• Sign in to sync with Drive"; e.classList.add("status-warn"); }
   else e.textContent = "";
 }
 
@@ -739,36 +743,55 @@ function lock(fn) {
   return p;
 }
 
-// The ONLY path that writes to Drive. It always reads remote first and merges,
-// so it can never overwrite data it hasn't seen. If we can't get a token, the
-// data stays safely on this device (marked dirty) and syncs later.
-function syncNow(isSave) {
+function spinRefresh(on) {
+  el("refresh-btn").classList.toggle("spinning", on);
+}
+
+// The ONLY path that writes to Drive. It always reads remote first and merges
+// by id, so it can never overwrite data it hasn't seen and never duplicates.
+// - label:       "saving" or "syncing" (status text)
+// - interactive: may pop up Google sign-in to get a token (only from a gesture)
+function syncNow({ label = "syncing", interactive = false } = {}) {
   return lock(async () => {
-    setStatus(isSave ? "saving" : "syncing");
-    if (!getToken()) {
-      const ok = await ensureToken();
-      if (!ok) { setStatus("local"); return; }
-    }
-    const attempt = async () => {
-      const remote = await store.loadDoc();
-      const merged = mergeDocs(remote, localDoc());
-      applyDoc(merged);
-      await store.saveDoc(merged);
-      clearDirty();
-      setStatus(isSave ? "saved" : "synced");
-    };
+    if (!navigator.onLine) { setStatus(isDirty() ? "offline" : "synced"); return; }
+    setStatus(label);
+    spinRefresh(true);
     try {
-      await attempt();
-    } catch (err) {
-      if (err instanceof store.AuthExpiredError) {
-        clearToken();
-        if (await ensureToken()) {
-          try { await attempt(); return; } catch (e) { console.error(e); }
+      if (!getToken()) {
+        if (interactive) {
+          const ok = await ensureToken();
+          if (!ok) { setStatus(isDirty() ? "local" : "signin"); return; }
+        } else {
+          setStatus(isDirty() ? "local" : "signin");
+          return;
         }
-      } else {
-        console.error(err);
       }
-      setStatus("local");
+      const attempt = async () => {
+        const remote = await store.loadDoc();
+        const merged = mergeDocs(remote, localDoc());
+        applyDoc(merged);
+        await store.saveDoc(merged);
+        clearDirty();
+        setStatus(label === "saving" ? "saved" : "synced");
+      };
+      try {
+        await attempt();
+      } catch (err) {
+        if (err instanceof store.AuthExpiredError) {
+          clearToken();
+          if (interactive && await ensureToken()) {
+            try { await attempt(); return; } catch (e) { console.error(e); }
+          }
+          setStatus(isDirty() ? "local" : "signin");
+        } else if (err instanceof store.NetworkError) {
+          setStatus("offline");
+        } else {
+          console.error(err);
+          setStatus(isDirty() ? "local" : "synced");
+        }
+      }
+    } finally {
+      spinRefresh(false);
     }
   });
 }
@@ -776,7 +799,12 @@ function syncNow(isSave) {
 async function persist() {
   saveLocal();
   setDirty();
-  await syncNow(true);
+  await syncNow({ label: "saving", interactive: true });
+}
+
+// Manual "refresh from Drive" — always tries (re-auth allowed since it's a tap).
+function manualRefresh() {
+  syncNow({ label: "syncing", interactive: true });
 }
 
 // =====================================================================
@@ -790,7 +818,7 @@ async function handleSignIn() {
     setToken(accessToken);
     setUserUI(user);
     enterAppLocal(true);
-    syncNow(false);
+    syncNow({ label: "syncing", interactive: false });
   } catch (err) {
     if (err?.code !== "auth/popup-closed-by-user") { console.error(err); toast("Sign-in failed"); }
     el("login-btn").disabled = false;
@@ -896,10 +924,21 @@ function init() {
   // Quick add (floating button) — adds for today
   el("fab-add").addEventListener("click", () => openAddModal(todayKey()));
 
+  // Manual refresh from Drive
+  el("refresh-btn").addEventListener("click", manualRefresh);
+
   // Day modal
   el("day-close").addEventListener("click", closeDayModal);
   el("day-add").addEventListener("click", () => openAddModal(dayModalDate));
   el("day-modal").addEventListener("click", (e) => { if (e.target.id === "day-modal") closeDayModal(); });
+
+  // Keep in sync automatically: when the connection returns, or when the app
+  // comes back to the foreground.
+  window.addEventListener("online", () => { if (entered && getToken()) syncNow({ label: "syncing", interactive: false }); });
+  window.addEventListener("offline", () => { if (entered) setStatus(isDirty() ? "offline" : "synced"); });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && entered && getToken()) syncNow({ label: "syncing", interactive: false });
+  });
 
   // Local-first boot: open straight to the calendar from the local copy (and
   // always offer to add today's expense). Sync with Drive in the background.
@@ -909,26 +948,33 @@ function init() {
   const token = getToken();
   if (token || expenses.length) {
     enterAppLocal(true);
-    if (token) syncNow(false);   // load-merge-save brings any Drive data back
+    if (token) syncNow({ label: "syncing", interactive: false });
   }
 
   watchAuth((user) => {
     setUserUI(user);
     if (entered) {
-      // Now that we know who's signed in, make sure we've synced at least once.
-      if (getToken()) syncNow(false);
+      if (getToken()) syncNow({ label: "syncing", interactive: false });
       return;
     }
     if (user) {
       // Returning user whose local copy was cleared: still go straight in.
       enterAppLocal(true);
-      syncNow(false);
+      syncNow({ label: "syncing", interactive: false });
     } else {
       // Brand-new (or signed out): show the login screen.
       show("login");
       el("login-btn").disabled = false;
     }
   });
+
+  // Safety net: never get stuck on the loading spinner.
+  setTimeout(() => {
+    if (!entered && el("login-view").classList.contains("hidden")) {
+      show("login");
+      el("login-btn").disabled = false;
+    }
+  }, 6000);
 }
 
 init();

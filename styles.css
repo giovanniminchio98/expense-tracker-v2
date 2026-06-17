@@ -424,6 +424,9 @@ h2 { font-size: 1.05rem; margin: 0; }
 }
 
 .sync-status { text-align: center; font-size: 0.78rem; color: var(--muted); margin-top: 14px; min-height: 1.2em; }
+.sync-status.status-ok { color: #16a34a; }
+.sync-status.status-warn { color: #d97706; }
+#refresh-btn.spinning svg { animation: spin 0.8s linear infinite; }
 .mini-spin {
   display: inline-block;
   width: 11px; height: 11px;
