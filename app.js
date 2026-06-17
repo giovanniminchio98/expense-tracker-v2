@@ -10,12 +10,12 @@ const el = (id) => document.getElementById(id);
 
 // Fixed categories — no custom ones.
 const CATEGORIES = [
-  { id: "food", label: "Food", icon: "🍔" },
-  { id: "transport", label: "Transport", icon: "🚗" },
-  { id: "shopping", label: "Shopping", icon: "🛒" },
+  { id: "food", label: "Food", icon: "🍽️" },
+  { id: "transport", label: "Transport", icon: "🚆" },
+  { id: "shopping", label: "Shopping", icon: "🛍️" },
   { id: "bills", label: "Bills", icon: "🧾" },
-  { id: "fun", label: "Fun", icon: "🎉" },
-  { id: "other", label: "Other", icon: "🔖" },
+  { id: "fun", label: "Fun", icon: "🍿" },
+  { id: "other", label: "Other", icon: "🏷️" },
 ];
 const catById = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[CATEGORIES.length - 1];
 
@@ -368,7 +368,7 @@ function renderStats() {
     value: byMonth[`${viewYear}-${pad(idx + 1)}`] || 0,
   }));
   const hi = viewYear === nowY ? nowM : -1;
-  el("chart-months").innerHTML = barChartSVG(monthlyChart, { highlightIndex: hi });
+  renderChartInto("chart-months", monthlyChart, { highlightIndex: hi });
 
   // Chart: totals by year
   const byYear = {};
@@ -378,9 +378,11 @@ function renderStats() {
   }
   const yearChart = Object.keys(byYear).sort()
     .map((y) => ({ short: y, label: y, value: byYear[y] }));
-  el("chart-years").innerHTML = yearChart.length
-    ? barChartSVG(yearChart, { highlightIndex: yearChart.findIndex((r) => r.short === String(nowY)) })
-    : `<p class="empty">No data yet.</p>`;
+  if (yearChart.length) {
+    renderChartInto("chart-years", yearChart, { highlightIndex: yearChart.findIndex((r) => r.short === String(nowY)) });
+  } else {
+    el("chart-years").innerHTML = `<p class="empty">No data yet.</p>`;
+  }
 
   // Month by month (all months, newest first)
   const monthRows = Object.keys(byMonth)
@@ -392,27 +394,57 @@ function renderStats() {
   renderBars(el("stat-months"), monthRows, "No data yet.");
 }
 
-// Minimal dependency-free SVG bar chart (scales to container width, theme-aware).
+// Minimal dependency-free SVG bar chart (scales to width, theme-aware,
+// interactive: each bar shows its amount and can be tapped/hovered).
 function barChartSVG(rows, { highlightIndex = -1 } = {}) {
-  const W = 320, H = 150, padT = 12, padB = 22, padX = 6;
+  const W = 320, H = 162, padT = 20, padB = 22, padX = 6;
   const n = rows.length || 1;
   const max = Math.max(1, ...rows.map((r) => r.value));
   const chartH = H - padT - padB;
   const bw = (W - padX * 2) / n;
   const innerW = Math.min(bw * 0.66, 40);
   const baseY = padT + chartH;
+  const dense = n > 8; // hide value labels when too many bars to avoid clutter
   let svg = "";
   rows.forEach((r, i) => {
     const h = (r.value / max) * chartH;
-    const x = padX + i * bw + (bw - innerW) / 2;
+    const cx = padX + i * bw + bw / 2;
+    const x = cx - innerW / 2;
     const y = baseY - h;
     const fill = i === highlightIndex ? "var(--primary)" : "var(--has-exp)";
     const op = r.value > 0 ? 1 : 0.18;
-    svg += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${innerW.toFixed(1)}" height="${Math.max(0, h).toFixed(1)}" rx="2" fill="${fill}" opacity="${op}"><title>${r.label}: ${fmtMoney(r.value)}</title></rect>`;
-    svg += `<text x="${(x + innerW / 2).toFixed(1)}" y="${H - 7}" text-anchor="middle" font-size="9" fill="var(--muted)">${r.short ?? ""}</text>`;
+    svg += `<rect class="cbar" data-i="${i}" data-label="${r.label}" data-amt="${fmtMoney(r.value)}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${innerW.toFixed(1)}" height="${Math.max(0, h).toFixed(1)}" rx="2" fill="${fill}" opacity="${op}"><title>${r.label}: ${fmtMoney(r.value)}</title></rect>`;
+    if (r.value > 0 && (!dense || i === highlightIndex)) {
+      svg += `<text x="${cx.toFixed(1)}" y="${(y - 3).toFixed(1)}" text-anchor="middle" font-size="7.5" fill="var(--muted)">${fmtMoneyShort(r.value)}</text>`;
+    }
+    svg += `<text x="${cx.toFixed(1)}" y="${H - 7}" text-anchor="middle" font-size="9" fill="var(--muted)">${r.short ?? ""}</text>`;
   });
   svg += `<line x1="${padX}" y1="${baseY}" x2="${W - padX}" y2="${baseY}" stroke="var(--border)" stroke-width="1"/>`;
   return `<svg viewBox="0 0 ${W} ${H}" class="chart" role="img">${svg}</svg>`;
+}
+
+// Render a chart plus a readout line, and preselect a meaningful bar.
+function renderChartInto(id, rows, opts = {}) {
+  const cont = el(id);
+  cont.innerHTML = barChartSVG(rows, opts) + `<div class="chart-read"></div>`;
+  let idx = opts.highlightIndex;
+  if (idx == null || idx < 0 || !(rows[idx] && rows[idx].value > 0)) {
+    idx = rows.reduce((bi, r, i, arr) => (r.value > (arr[bi]?.value || 0) ? i : bi), 0);
+  }
+  selectChartBar(cont, idx);
+}
+function selectChartBar(cont, idx) {
+  const rects = cont.querySelectorAll("rect.cbar");
+  const read = cont.querySelector(".chart-read");
+  if (!rects.length || !read) return;
+  rects.forEach((r) => r.classList.remove("sel"));
+  const r = rects[idx];
+  if (r) { r.classList.add("sel"); read.textContent = `${r.dataset.label}: ${r.dataset.amt}`; }
+  else read.textContent = "";
+}
+function onChartPoint(cont, e) {
+  const rect = e.target.closest && e.target.closest("rect.cbar");
+  if (rect) selectChartBar(cont, Number(rect.dataset.i));
 }
 
 function renderBars(container, rows, emptyMsg) {
@@ -642,7 +674,7 @@ function renderDayModal(dateKey) {
       </span>
       <span class="expense-right">
         <span class="expense-amount"></span>
-        <button class="del-btn" title="Delete" aria-label="Delete">🗑️</button>
+        <button class="del-btn" title="Delete" aria-label="Delete"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13"/></svg></button>
       </span>`;
     li.querySelector(".expense-cat-icon").textContent = cat.icon;
     li.querySelector(".expense-cat-name").textContent = cat.label;
@@ -847,6 +879,13 @@ function init() {
   el("tab-calendar").addEventListener("click", () => switchTab("calendar"));
   el("tab-stats").addEventListener("click", () => switchTab("stats"));
   el("tab-math").addEventListener("click", () => switchTab("math"));
+
+  // Interactive charts (tap/hover a bar to read its amount)
+  ["chart-months", "chart-years"].forEach((id) => {
+    const c = el(id);
+    c.addEventListener("click", (e) => onChartPoint(c, e));
+    c.addEventListener("mouseover", (e) => onChartPoint(c, e));
+  });
 
   // Add modal
   el("add-close").addEventListener("click", closeAddModal);
