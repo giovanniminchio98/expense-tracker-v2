@@ -93,6 +93,10 @@
           <div class="stat-card"><span>Monthly avg</span><strong id="stat-avg">€0</strong></div>
           <div class="stat-card"><span>Entries</span><strong id="stat-count">0</strong></div>
         </div>
+        <h3 id="chart-months-title">Monthly totals</h3>
+        <div id="chart-months" class="chart-wrap"></div>
+        <h3>Totals by year</h3>
+        <div id="chart-years" class="chart-wrap"></div>
         <h3 id="stat-cat-title">By category</h3>
         <div id="stat-cats" class="bars"></div>
         <h3>Month by month</h3>
@@ -107,6 +111,9 @@
         <div id="math-list"></div>
         <p id="math-empty" class="empty hidden">Add some expenses to see the math.</p>
       </div>
+
+      <!-- Quick add (floating, available on every tab) -->
+      <button id="fab-add" class="fab" aria-label="Add expense">＋</button>
 
       <!-- Tab bar -->
       <nav class="tabbar">

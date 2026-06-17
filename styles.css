@@ -214,6 +214,38 @@ h2 { font-size: 1.05rem; margin: 0; }
 }
 .today-btn:hover { background: #e0e7ff; }
 
+/* Floating quick-add button */
+.fab {
+  position: fixed;
+  right: 18px;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: var(--primary);
+  color: #fff;
+  font-size: 2rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.12s;
+}
+.fab:active { transform: scale(0.92); }
+
+/* Charts */
+.chart-wrap {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 8px 4px;
+  box-shadow: var(--shadow);
+}
+.chart { width: 100%; height: auto; display: block; }
+
 /* Tab bar — bordered buttons, highlighted when active */
 .tabbar {
   position: fixed;
