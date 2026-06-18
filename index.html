@@ -85,46 +85,43 @@
         <p id="sync-status" class="sync-status"></p>
       </div>
 
-      <!-- Stats panel -->
+      <!-- Stats panel — income & expenses -->
       <div id="stats-panel" class="hidden">
-        <h2>Statistics</h2>
+        <h2>Income &amp; expenses</h2>
         <div class="stat-cards">
-          <div class="stat-card"><span>All time</span><strong id="stat-alltime">€0</strong></div>
-          <div class="stat-card"><span>This month</span><strong id="stat-thismonth">€0</strong></div>
-          <div class="stat-card"><span>Monthly avg</span><strong id="stat-avg">€0</strong></div>
-          <div class="stat-card"><span>Entries</span><strong id="stat-count">0</strong></div>
+          <div class="stat-card"><span>Income</span><strong id="stat-income" class="amt-inc">€0</strong></div>
+          <div class="stat-card"><span>Expenses</span><strong id="stat-expense" class="amt-exp">€0</strong></div>
+          <div class="stat-card"><span>Net</span><strong id="stat-net">€0</strong></div>
+          <div class="stat-card"><span>Net this month</span><strong id="stat-month-net">€0</strong></div>
         </div>
-        <h3 id="chart-months-title">Monthly totals</h3>
+        <h3 id="chart-months-title">Monthly expenses</h3>
         <div id="chart-months" class="chart-wrap"></div>
-        <h3>Totals by year</h3>
-        <div id="chart-years" class="chart-wrap"></div>
-        <h3 id="stat-cat-title">By category</h3>
+        <h3 id="chart-income-title">Monthly income</h3>
+        <div id="chart-income" class="chart-wrap"></div>
+        <h3 id="stat-cat-title">Expenses by category</h3>
         <div id="stat-cats" class="bars"></div>
-        <h3>Month by month</h3>
+        <h3 id="stat-inc-cat-title">Income by category</h3>
+        <div id="stat-inc-cats" class="bars"></div>
+        <h3>Net by month</h3>
         <div id="stat-months" class="bars scroll-list"></div>
-        <p id="stat-empty" class="empty hidden">No expenses yet.</p>
+        <p id="stat-empty" class="empty hidden">No data yet.</p>
       </div>
 
-      <!-- Wealth panel -->
-      <div id="wealth-panel" class="hidden">
-        <h2>Net worth</h2>
+      <!-- Assets panel — savings / investments / crypto -->
+      <div id="assets-panel" class="hidden">
+        <h2>Savings &amp; investments</h2>
         <div class="nw-hero">
-          <span>Current net worth</span>
-          <strong id="nw-total">€0</strong>
+          <span>Total (savings + investments + crypto)</span>
+          <strong id="as-total">€0</strong>
         </div>
-        <div class="stat-cards">
-          <div class="stat-card"><span>Income (all time)</span><strong id="nw-income" class="amt-inc">€0</strong></div>
-          <div class="stat-card"><span>Expenses (all time)</span><strong id="nw-expense" class="amt-exp">€0</strong></div>
-          <div class="stat-card"><span>Net cashflow</span><strong id="nw-cashflow">€0</strong></div>
-          <div class="stat-card"><span>&nbsp;</span><button id="nw-add" class="btn btn-primary btn-block">+ Add holding</button></div>
-        </div>
-        <h3>Net worth over time</h3>
-        <div id="nw-chart" class="chart-wrap"></div>
-        <h3>Holdings by type</h3>
-        <div id="nw-breakdown" class="bars"></div>
-        <h3>Recent holdings</h3>
-        <ul id="nw-list" class="expense-list"></ul>
-        <p id="nw-empty" class="empty hidden">No holdings yet — tap “Add holding”.</p>
+        <button id="as-add" class="btn btn-primary btn-block">+ Add / update entry</button>
+        <h3>Total over time</h3>
+        <div id="assets-chart" class="chart-wrap"></div>
+        <h3>By type (latest value)</h3>
+        <div id="as-breakdown" class="bars"></div>
+        <h3>Entries</h3>
+        <ul id="as-list" class="expense-list"></ul>
+        <p id="as-empty" class="empty hidden">No entries yet — tap “Add / update entry”.</p>
       </div>
 
       <!-- Math panel -->
@@ -144,10 +141,6 @@
           <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg>
           <span>Calendar</span>
         </button>
-        <button id="tab-wealth" class="tab">
-          <svg class="ic" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 7v5h-5"/></svg>
-          <span>Wealth</span>
-        </button>
         <button id="tab-stats" class="tab">
           <svg class="ic-fill" viewBox="0 0 24 24"><rect x="3" y="11" width="4" height="9" rx="1"/><rect x="10" y="5" width="4" height="15" rx="1"/><rect x="17" y="14" width="4" height="6" rx="1"/></svg>
           <span>Stats</span>
@@ -155,6 +148,10 @@
         <button id="tab-math" class="tab">
           <svg class="ic" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01"/></svg>
           <span>Math</span>
+        </button>
+        <button id="tab-assets" class="tab">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 7v5h-5"/></svg>
+          <span>Assets</span>
         </button>
       </nav>
     </section>

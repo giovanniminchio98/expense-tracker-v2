@@ -304,22 +304,22 @@ const neuro = (() => {
 // =====================================================================
 //  Tabs
 // =====================================================================
-const TABS = ["calendar", "wealth", "stats", "math"];
+const TABS = ["calendar", "stats", "math", "assets"];
 function switchTab(tab) {
   for (const t of TABS) {
     el(`${t}-panel`).classList.toggle("hidden", t !== tab);
     el(`tab-${t}`).classList.toggle("active", t === tab);
   }
-  if (tab === "wealth") renderWealth();
   if (tab === "stats") renderStats();
   if (tab === "math") renderMath();
+  if (tab === "assets") renderAssets();
 }
 
 // =====================================================================
-//  Wealth (net worth + holdings)
+//  Assets (savings / investments / crypto — independent of income/expenses)
 // =====================================================================
 
-// Current net worth = sum of the latest snapshot per asset category.
+// Latest snapshot per asset category.
 function latestByCategory() {
   const latest = {};
   for (const a of assets) {
@@ -329,59 +329,41 @@ function latestByCategory() {
   }
   return latest;
 }
-function netWorth() {
+function assetsTotal() {
   return Object.values(latestByCategory()).reduce((s, a) => s + Number(a.amount || 0), 0);
 }
 
-// Net worth over time, by month: at each month-end, sum the latest-known value
-// per category up to that month.
-function netWorthSeries() {
+// Total value over time: at each date that has an entry, sum the latest-known
+// value per category up to that date (a step series of the changes).
+function assetSeries() {
   if (!assets.length) return [];
-  const sorted = [...assets].sort((a, b) => a.date.localeCompare(b.date));
-  const firstYM = sorted[0].date.slice(0, 7);
-  const now = new Date();
-  const out = [];
-  let y = +firstYM.slice(0, 4), m = +firstYM.slice(5, 7) - 1;
-  const endY = now.getFullYear(), endM = now.getMonth();
+  const sorted = [...assets].sort((a, b) => a.date.localeCompare(b.date) || (a.createdAt || "").localeCompare(b.createdAt || ""));
   const latest = {};
-  let gi = 0;
-  while (y < endY || (y === endY && m <= endM)) {
-    const ymEnd = `${y}-${pad(m + 1)}-31`;
-    while (gi < sorted.length && sorted[gi].date <= ymEnd) { latest[sorted[gi].category] = sorted[gi]; gi++; }
-    const total = Object.values(latest).reduce((s, a) => s + Number(a.amount || 0), 0);
-    out.push({ short: `${MONTHS_SHORT[m]}`, label: `${MONTHS_SHORT[m]} ${y}`, value: total });
-    m++; if (m > 11) { m = 0; y++; }
-    if (out.length > 24) out.shift();
+  const byDate = new Map();
+  for (const a of sorted) {
+    latest[a.category] = a;
+    const total = Object.values(latest).reduce((s, x) => s + Number(x.amount || 0), 0);
+    byDate.set(a.date, total);   // last entry on a date wins
   }
-  return out;
+  return [...byDate.entries()].map(([date, value]) => ({ short: date.slice(5), label: date, value }));
 }
 
-function renderWealth() {
-  const sumExp = expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
-  const sumInc = incomes.reduce((s, e) => s + Number(e.amount || 0), 0);
-  const nw = netWorth();
-  el("nw-total").textContent = fmtMoney(nw);
-  el("nw-income").textContent = "+" + fmtMoney(sumInc);
-  el("nw-expense").textContent = "−" + fmtMoney(sumExp);
-  el("nw-cashflow").textContent = (sumInc - sumExp >= 0 ? "+" : "−") + fmtMoney(Math.abs(sumInc - sumExp));
-  el("nw-cashflow").className = "stat-card-v " + (sumInc - sumExp >= 0 ? "amt-inc" : "amt-exp");
+function renderAssets() {
+  el("as-total").textContent = fmtMoney(assetsTotal());
 
-  // Holdings breakdown (latest per category)
   const latest = latestByCategory();
   const breakdown = CATEGORIES.asset
     .map((c) => ({ label: `${c.icon} ${c.label}`, value: latest[c.id] ? Number(latest[c.id].amount || 0) : 0 }))
     .filter((r) => r.value > 0)
     .sort((a, b) => b.value - a.value);
-  renderBars(el("nw-breakdown"), breakdown, "No holdings yet — tap “Add holding”.");
+  renderBars(el("as-breakdown"), breakdown, "No entries yet.");
 
-  // Net worth over time
-  renderChartInto("nw-chart", netWorthSeries(), {});
-  if (!assets.length) el("nw-chart").innerHTML = `<p class="empty">Add holdings to see your net-worth trend.</p>`;
+  if (assets.length) renderChartInto("assets-chart", assetSeries(), {});
+  else el("assets-chart").innerHTML = `<p class="empty">Add entries to see the trend.</p>`;
 
-  // Recent holdings list
-  const list = el("nw-list");
+  const list = el("as-list");
   list.innerHTML = "";
-  const recent = [...assets].sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || "").localeCompare(a.createdAt || "")).slice(0, 40);
+  const recent = [...assets].sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || "").localeCompare(a.createdAt || ""));
   for (const a of recent) {
     const cat = catById("asset", a.category);
     const li = document.createElement("li");
@@ -403,7 +385,7 @@ function renderWealth() {
     li.querySelector(".del-btn").addEventListener("click", () => removeEntry(a.id, "asset"));
     list.appendChild(li);
   }
-  el("nw-empty").classList.toggle("hidden", assets.length > 0);
+  el("as-empty").classList.toggle("hidden", assets.length > 0);
 }
 
 // =====================================================================
@@ -456,73 +438,75 @@ function renderCalendar() {
 //  Stats (overview)
 // =====================================================================
 function renderStats() {
-  el("stat-empty").classList.toggle("hidden", expenses.length > 0);
-
-  const allTotal = expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
-  el("stat-alltime").textContent = fmtMoney(allTotal);
-  el("stat-count").textContent = String(expenses.length);
-
-  const byMonth = {};
-  for (const e of expenses) byMonth[monthKey(e.date)] = (byMonth[monthKey(e.date)] || 0) + Number(e.amount || 0);
-  const monthCount = Object.keys(byMonth).length || 1;
-  el("stat-avg").textContent = fmtMoney(allTotal / monthCount);
-
+  el("stat-empty").classList.toggle("hidden", expenses.length + incomes.length > 0);
   const now = new Date();
-  const curKey = toKey(now.getFullYear(), now.getMonth(), 1).slice(0, 7);
-  el("stat-thismonth").textContent = fmtMoney(byMonth[curKey] || 0);
-
-  // By category for the viewed month
-  el("stat-cat-title").textContent = `${MONTHS[viewMonth]} ${viewYear} by category`;
+  const nowY = now.getFullYear(), nowM = now.getMonth();
+  const curKey = toKey(nowY, nowM, 1).slice(0, 7);
   const viewKey = toKey(viewYear, viewMonth, 1).slice(0, 7);
+
+  const sumExpAll = expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
+  const sumIncAll = incomes.reduce((s, e) => s + Number(e.amount || 0), 0);
+  const net = sumIncAll - sumExpAll;
+
+  // Per-month totals (expenses + income)
+  const byMonth = {}, incByMonth = {};
+  for (const e of expenses) byMonth[monthKey(e.date)] = (byMonth[monthKey(e.date)] || 0) + Number(e.amount || 0);
+  for (const e of incomes) incByMonth[monthKey(e.date)] = (incByMonth[monthKey(e.date)] || 0) + Number(e.amount || 0);
+  const monthNet = (incByMonth[curKey] || 0) - (byMonth[curKey] || 0);
+
+  el("stat-income").textContent = "+" + fmtMoney(sumIncAll);
+  el("stat-expense").textContent = "−" + fmtMoney(sumExpAll);
+  const setSigned = (id, v) => {
+    const e = el(id);
+    e.textContent = (v >= 0 ? "+" : "−") + fmtMoney(Math.abs(v));
+    e.className = "amt-" + (v >= 0 ? "inc" : "exp");
+  };
+  setSigned("stat-net", net);
+  setSigned("stat-month-net", monthNet);
+
+  // Monthly expenses & income charts for the viewed year
+  el("chart-months-title").textContent = `Monthly expenses — ${viewYear}`;
+  el("chart-income-title").textContent = `Monthly income — ${viewYear}`;
+  const hi = viewYear === nowY ? nowM : -1;
+  const expChart = MONTHS_SHORT.map((m, idx) => ({ short: m[0], label: `${m} ${viewYear}`, value: byMonth[`${viewYear}-${pad(idx + 1)}`] || 0 }));
+  const incChart = MONTHS_SHORT.map((m, idx) => ({ short: m[0], label: `${m} ${viewYear}`, value: incByMonth[`${viewYear}-${pad(idx + 1)}`] || 0 }));
+  renderChartInto("chart-months", expChart, { highlightIndex: hi, color: "#dc2626" });
+  renderChartInto("chart-income", incChart, { highlightIndex: hi, color: "#16a34a" });
+
+  // Expenses by category (viewed month)
+  el("stat-cat-title").textContent = `Expenses — ${MONTHS[viewMonth]} ${viewYear}`;
   const byCat = {};
   for (const e of expenses) {
     if (monthKey(e.date) !== viewKey) continue;
-    byCat[catById("expense", e.category).id] = (byCat[catById("expense", e.category).id] || 0) + Number(e.amount || 0);
+    byCat[e.category] = (byCat[e.category] || 0) + Number(e.amount || 0);
   }
-  const catRows = CATEGORIES.expense
+  renderBars(el("stat-cats"), CATEGORIES.expense
     .map((c) => ({ label: `${c.icon} ${c.label}`, value: byCat[c.id] || 0 }))
-    .filter((r) => r.value > 0)
-    .sort((a, b) => b.value - a.value);
-  renderBars(el("stat-cats"), catRows, "No expenses this month.");
+    .filter((r) => r.value > 0).sort((a, b) => b.value - a.value), "No expenses this month.");
 
-  // Chart: monthly totals for the viewed year
-  el("chart-months-title").textContent = `Monthly totals — ${viewYear}`;
-  const nowM = now.getMonth(), nowY = now.getFullYear();
-  const monthlyChart = MONTHS_SHORT.map((m, idx) => ({
-    short: m[0],
-    label: `${m} ${viewYear}`,
-    value: byMonth[`${viewYear}-${pad(idx + 1)}`] || 0,
-  }));
-  const hi = viewYear === nowY ? nowM : -1;
-  renderChartInto("chart-months", monthlyChart, { highlightIndex: hi });
-
-  // Chart: totals by year
-  const byYear = {};
-  for (const e of expenses) {
-    const y = e.date.slice(0, 4);
-    byYear[y] = (byYear[y] || 0) + Number(e.amount || 0);
+  // Income by category (viewed month)
+  el("stat-inc-cat-title").textContent = `Income — ${MONTHS[viewMonth]} ${viewYear}`;
+  const byInc = {};
+  for (const e of incomes) {
+    if (monthKey(e.date) !== viewKey) continue;
+    byInc[e.category] = (byInc[e.category] || 0) + Number(e.amount || 0);
   }
-  const yearChart = Object.keys(byYear).sort()
-    .map((y) => ({ short: y, label: y, value: byYear[y] }));
-  if (yearChart.length) {
-    renderChartInto("chart-years", yearChart, { highlightIndex: yearChart.findIndex((r) => r.short === String(nowY)) });
-  } else {
-    el("chart-years").innerHTML = `<p class="empty">No data yet.</p>`;
-  }
+  renderBars(el("stat-inc-cats"), CATEGORIES.income
+    .map((c) => ({ label: `${c.icon} ${c.label}`, value: byInc[c.id] || 0 }))
+    .filter((r) => r.value > 0).sort((a, b) => b.value - a.value), "No income this month.");
 
-  // Month by month (all months, newest first)
-  const monthRows = Object.keys(byMonth)
-    .sort((a, b) => b.localeCompare(a))
-    .map((k) => {
-      const [y, m] = k.split("-").map(Number);
-      return { label: `${MONTHS_SHORT[m - 1]} ${y}`, value: byMonth[k] };
-    });
-  renderBars(el("stat-months"), monthRows, "No data yet.");
+  // Net by month (all months, newest first)
+  const months = new Set([...Object.keys(byMonth), ...Object.keys(incByMonth)]);
+  const monthRows = [...months].sort((a, b) => b.localeCompare(a)).map((k) => {
+    const [y, m] = k.split("-").map(Number);
+    return { label: `${MONTHS_SHORT[m - 1]} ${y}`, value: (incByMonth[k] || 0) - (byMonth[k] || 0) };
+  });
+  renderBars(el("stat-months"), monthRows, "No data yet.", true);
 }
 
 // Minimal dependency-free SVG bar chart (scales to width, theme-aware,
 // interactive: each bar shows its amount and can be tapped/hovered).
-function barChartSVG(rows, { highlightIndex = -1 } = {}) {
+function barChartSVG(rows, { highlightIndex = -1, color = null } = {}) {
   const W = 320, H = 162, padT = 20, padB = 22, padX = 6;
   const n = rows.length || 1;
   const max = Math.max(1, ...rows.map((r) => r.value));
@@ -537,7 +521,7 @@ function barChartSVG(rows, { highlightIndex = -1 } = {}) {
     const cx = padX + i * bw + bw / 2;
     const x = cx - innerW / 2;
     const y = baseY - h;
-    const fill = i === highlightIndex ? "var(--primary)" : "var(--has-exp)";
+    const fill = i === highlightIndex ? "var(--primary)" : (color || "var(--has-exp)");
     const op = r.value > 0 ? 1 : 0.18;
     svg += `<rect class="cbar" data-i="${i}" data-label="${r.label}" data-amt="${fmtMoney(r.value)}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${innerW.toFixed(1)}" height="${Math.max(0, h).toFixed(1)}" rx="2" fill="${fill}" opacity="${op}"><title>${r.label}: ${fmtMoney(r.value)}</title></rect>`;
     if (r.value > 0 && (!dense || i === highlightIndex)) {
@@ -573,7 +557,7 @@ function onChartPoint(cont, e) {
   if (rect) selectChartBar(cont, Number(rect.dataset.i));
 }
 
-function renderBars(container, rows, emptyMsg) {
+function renderBars(container, rows, emptyMsg, signed = false) {
   container.innerHTML = "";
   if (!rows.length) {
     if (emptyMsg) {
@@ -584,14 +568,23 @@ function renderBars(container, rows, emptyMsg) {
     }
     return;
   }
-  const max = Math.max(1, ...rows.map((r) => r.value));
+  const max = Math.max(1, ...rows.map((r) => Math.abs(r.value)));
   for (const r of rows) {
     const row = document.createElement("div");
     row.className = "bar-row";
     row.innerHTML = `<span class="bar-label"></span><span class="bar-track"><span class="bar-fill"></span></span><span class="bar-value"></span>`;
     row.querySelector(".bar-label").textContent = r.label;
-    row.querySelector(".bar-fill").style.width = (r.value / max * 100) + "%";
-    row.querySelector(".bar-value").textContent = fmtMoney(r.value);
+    const fill = row.querySelector(".bar-fill");
+    fill.style.width = (Math.abs(r.value) / max * 100) + "%";
+    const valEl = row.querySelector(".bar-value");
+    if (signed) {
+      const pos = r.value >= 0;
+      fill.style.background = pos ? "#16a34a" : "#dc2626";
+      valEl.textContent = (pos ? "+" : "−") + fmtMoney(Math.abs(r.value));
+      valEl.className = "bar-value amt-" + (pos ? "inc" : "exp");
+    } else {
+      valEl.textContent = fmtMoney(r.value);
+    }
     container.appendChild(row);
   }
 }
@@ -1004,9 +997,9 @@ function enterAppLocal(promptToday) {
 
 function refreshAll() {
   renderCalendar();
-  if (!el("wealth-panel").classList.contains("hidden")) renderWealth();
   if (!el("stats-panel").classList.contains("hidden")) renderStats();
   if (!el("math-panel").classList.contains("hidden")) renderMath();
+  if (!el("assets-panel").classList.contains("hidden")) renderAssets();
 }
 
 function setUserUI(user) { if (user && user.photoURL) el("user-photo").src = user.photoURL; }
@@ -1071,7 +1064,7 @@ function init() {
   TABS.forEach((t) => el(`tab-${t}`).addEventListener("click", () => switchTab(t)));
 
   // Interactive charts (tap/hover a bar to read its amount)
-  ["chart-months", "chart-years", "nw-chart"].forEach((id) => {
+  ["chart-months", "chart-income", "assets-chart"].forEach((id) => {
     const c = el(id);
     c.addEventListener("click", (e) => onChartPoint(c, e));
     c.addEventListener("mouseover", (e) => onChartPoint(c, e));
@@ -1086,8 +1079,8 @@ function init() {
   // Quick add (floating button) — adds for today (expense/income toggle)
   el("fab-add").addEventListener("click", () => openAddModal(todayKey(), "expense", ["expense", "income"]));
 
-  // Add holding (Wealth tab)
-  el("nw-add").addEventListener("click", () => openAddModal(todayKey(), "asset", ["asset"]));
+  // Add / update an asset entry (Assets tab)
+  el("as-add").addEventListener("click", () => openAddModal(todayKey(), "asset", ["asset"]));
 
   // Manual refresh from Drive
   el("refresh-btn").addEventListener("click", manualRefresh);
