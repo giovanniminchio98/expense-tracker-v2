@@ -415,7 +415,7 @@ body[data-theme="dark"] .amt-exp, body[data-theme="futuristic"] .amt-exp { color
 
 .weekdays {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px;
   margin-bottom: 6px;
 }
@@ -428,12 +428,13 @@ body[data-theme="dark"] .amt-exp, body[data-theme="futuristic"] .amt-exp { color
 
 .calendar {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px;
 }
 
 .day {
   position: relative;
+  min-width: 0;
   aspect-ratio: 1 / 1;
   background: var(--card);
   border: 1px solid var(--border);
