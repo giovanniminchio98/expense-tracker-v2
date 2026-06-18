@@ -349,17 +349,80 @@ function assetSeries() {
   return [...byDate.entries()].map(([date, value]) => ({ short: date.slice(5), label: date, value }));
 }
 
-function renderAssets() {
-  el("as-total").textContent = fmtMoney(assetsTotal());
+function signedPct(p) {
+  if (p === null || !isFinite(p)) return "—";
+  return (p >= 0 ? "+" : "−") + Math.abs(p).toFixed(1) + "%";
+}
+// Latest two distinct-date snapshots for a category (for change vs previous).
+function lastTwo(catId) {
+  const es = assets.filter((a) => a.category === catId)
+    .sort((a, b) => a.date.localeCompare(b.date) || (a.createdAt || "").localeCompare(b.createdAt || ""));
+  return [es[es.length - 1], es[es.length - 2]];
+}
 
+function renderAssets() {
+  const total = assetsTotal();
+  el("as-total").textContent = fmtMoney(total);
+
+  const series = assetSeries();           // [{label:date, value}], ascending
+  // All-time and 30-day change %
+  const setChg = (id, base, cur) => {
+    const e = el(id);
+    const pct = base ? ((cur - base) / base) * 100 : null;
+    e.textContent = signedPct(pct);
+    e.className = "amt-" + (pct === null ? "" : pct >= 0 ? "inc" : "exp");
+  };
+  if (series.length) {
+    setChg("as-chg-all", series[0].value, total);
+    const cutoff = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+    let base30 = series[0].value;
+    for (const p of series) { if (p.label <= cutoff) base30 = p.value; else break; }
+    setChg("as-chg-30", base30, total);
+  } else {
+    el("as-chg-all").textContent = "—"; el("as-chg-30").textContent = "—";
+    el("as-chg-all").className = ""; el("as-chg-30").className = "";
+  }
+
+  // Allocation (latest value + % of total)
   const latest = latestByCategory();
-  const breakdown = CATEGORIES.asset
-    .map((c) => ({ label: `${c.icon} ${c.label}`, value: latest[c.id] ? Number(latest[c.id].amount || 0) : 0 }))
+  const alloc = el("as-alloc");
+  alloc.innerHTML = "";
+  const allocRows = CATEGORIES.asset
+    .map((c) => ({ c, value: latest[c.id] ? Number(latest[c.id].amount || 0) : 0 }))
     .filter((r) => r.value > 0)
     .sort((a, b) => b.value - a.value);
-  renderBars(el("as-breakdown"), breakdown, "No entries yet.");
+  if (!allocRows.length) alloc.innerHTML = `<p class="empty">No entries yet.</p>`;
+  for (const r of allocRows) {
+    const pct = total ? (r.value / total) * 100 : 0;
+    const row = document.createElement("div");
+    row.className = "bar-row";
+    row.innerHTML = `<span class="bar-label">${r.c.icon} ${r.c.label}</span>
+      <span class="bar-track"><span class="bar-fill"></span></span>
+      <span class="bar-value"></span>`;
+    row.querySelector(".bar-fill").style.width = pct + "%";
+    row.querySelector(".bar-value").textContent = `${fmtMoney(r.value)} · ${pct.toFixed(0)}%`;
+    alloc.appendChild(row);
+  }
 
-  if (assets.length) renderChartInto("assets-chart", assetSeries(), {});
+  // Per-type latest change (vs previous entry)
+  const chg = el("as-changes");
+  chg.innerHTML = "";
+  const changeRows = CATEGORIES.asset.map((c) => {
+    const [last, prev] = lastTwo(c.id);
+    if (!last) return null;
+    const pct = prev && prev.amount ? ((last.amount - prev.amount) / prev.amount) * 100 : null;
+    return { c, value: Number(last.amount || 0), pct };
+  }).filter(Boolean);
+  if (!changeRows.length) chg.innerHTML = `<p class="empty">Add a second entry for a type to see its change.</p>`;
+  for (const r of changeRows) {
+    const item = document.createElement("div");
+    item.className = "change-row";
+    item.innerHTML = `<span>${r.c.icon} ${r.c.label}</span>
+      <span class="change-val"><span class="muted">${fmtMoney(r.value)}</span> <b class="amt-${r.pct === null ? "" : r.pct >= 0 ? "inc" : "exp"}">${signedPct(r.pct)}</b></span>`;
+    chg.appendChild(item);
+  }
+
+  if (assets.length) renderChartInto("assets-chart", series, {});
   else el("assets-chart").innerHTML = `<p class="empty">Add entries to see the trend.</p>`;
 
   const list = el("as-list");
@@ -872,6 +935,12 @@ function setStatus(state) {
   else if (state === "offline") { e.textContent = "⚠ Offline — saved on device, will sync when online"; e.classList.add("status-warn"); }
   else if (state === "signin") { e.textContent = "• Saved on device — tap ⟳ to sync to Drive"; e.classList.add("status-warn"); }
   else e.textContent = "";
+
+  // Reflect sync health on the always-visible refresh arrow (green when synced).
+  const r = el("refresh-btn");
+  r.classList.remove("ok", "warn");
+  if (state === "saved" || state === "synced") r.classList.add("ok");
+  else if (state === "local" || state === "offline" || state === "signin") r.classList.add("warn");
 }
 
 // Obtain a fresh Google token. Must be called from a user gesture (save/delete)

@@ -114,11 +114,17 @@
           <span>Total (savings + investments + crypto)</span>
           <strong id="as-total">€0</strong>
         </div>
+        <div class="stat-cards stat-cards-2">
+          <div class="stat-card"><span>Change (all time)</span><strong id="as-chg-all">—</strong></div>
+          <div class="stat-card"><span>Change (30 days)</span><strong id="as-chg-30">—</strong></div>
+        </div>
         <button id="as-add" class="btn btn-primary btn-block">+ Add / update entry</button>
         <h3>Total over time</h3>
         <div id="assets-chart" class="chart-wrap"></div>
-        <h3>By type (latest value)</h3>
-        <div id="as-breakdown" class="bars"></div>
+        <h3>Allocation</h3>
+        <div id="as-alloc" class="bars"></div>
+        <h3>Latest change by type</h3>
+        <div id="as-changes" class="changes"></div>
         <h3>Entries</h3>
         <ul id="as-list" class="expense-list"></ul>
         <p id="as-empty" class="empty hidden">No entries yet — tap “Add / update entry”.</p>

@@ -328,7 +328,23 @@ h2 { font-size: 1.05rem; margin: 0; }
   font-family: "Orbitron", -apple-system, sans-serif;
   font-size: 2.1rem;
 }
+.stat-cards-2 { grid-template-columns: 1fr 1fr; }
 .stat-card .btn { margin-top: 2px; padding: 8px; font-size: 0.85rem; }
+/* Per-type change list */
+.changes { display: flex; flex-direction: column; gap: 6px; }
+.change-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  font-size: 0.9rem;
+}
+.change-val { display: flex; align-items: baseline; gap: 8px; }
+.change-val .muted { color: var(--muted); font-size: 0.82rem; }
+#refresh-btn.ok { color: #16a34a; }
+#refresh-btn.warn { color: #d97706; }
 .amt-inc { color: #16a34a; }
 .amt-exp { color: #dc2626; }
 body[data-theme="dark"] .amt-inc, body[data-theme="futuristic"] .amt-inc { color: #4ade80; }
