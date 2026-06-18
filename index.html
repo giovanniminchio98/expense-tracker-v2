@@ -105,6 +105,28 @@
         <p id="stat-empty" class="empty hidden">No expenses yet.</p>
       </div>
 
+      <!-- Wealth panel -->
+      <div id="wealth-panel" class="hidden">
+        <h2>Net worth</h2>
+        <div class="nw-hero">
+          <span>Current net worth</span>
+          <strong id="nw-total">€0</strong>
+        </div>
+        <div class="stat-cards">
+          <div class="stat-card"><span>Income (all time)</span><strong id="nw-income" class="amt-inc">€0</strong></div>
+          <div class="stat-card"><span>Expenses (all time)</span><strong id="nw-expense" class="amt-exp">€0</strong></div>
+          <div class="stat-card"><span>Net cashflow</span><strong id="nw-cashflow">€0</strong></div>
+          <div class="stat-card"><span>&nbsp;</span><button id="nw-add" class="btn btn-primary btn-block">+ Add holding</button></div>
+        </div>
+        <h3>Net worth over time</h3>
+        <div id="nw-chart" class="chart-wrap"></div>
+        <h3>Holdings by type</h3>
+        <div id="nw-breakdown" class="bars"></div>
+        <h3>Recent holdings</h3>
+        <ul id="nw-list" class="expense-list"></ul>
+        <p id="nw-empty" class="empty hidden">No holdings yet — tap “Add holding”.</p>
+      </div>
+
       <!-- Math panel -->
       <div id="math-panel" class="hidden">
         <h2>Advanced stats</h2>
@@ -121,6 +143,10 @@
         <button id="tab-calendar" class="tab active">
           <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg>
           <span>Calendar</span>
+        </button>
+        <button id="tab-wealth" class="tab">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 7v5h-5"/></svg>
+          <span>Wealth</span>
         </button>
         <button id="tab-stats" class="tab">
           <svg class="ic-fill" viewBox="0 0 24 24"><rect x="3" y="11" width="4" height="9" rx="1"/><rect x="10" y="5" width="4" height="15" rx="1"/><rect x="17" y="14" width="4" height="6" rx="1"/></svg>
@@ -146,6 +172,7 @@
         <span id="add-date-label" class="modal-date"></span>
         <button id="add-close" class="icon-btn" aria-label="Close"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
+      <div id="type-toggle" class="type-toggle"></div>
       <div id="amount-display" class="amount-display">€0</div>
       <div id="cat-chips" class="cat-chips"></div>
       <input id="note-input" class="note-input" type="text" maxlength="60"

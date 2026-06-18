@@ -97,26 +97,39 @@ async function createFile(content) {
   return data.id;
 }
 
-// Public: load the saved document { expenses, deleted } for the current user.
-// `deleted` is a map of id -> deletion timestamp (ms) used to merge safely.
+// Public: load the saved document for the current user.
+// Shape: { expenses, incomes, assets, deleted }. `deleted` is a map of
+// id -> deletion timestamp (ms) shared across all record types for safe merges.
 export async function loadDoc() {
   fileId = await findFile();
-  if (!fileId) return { expenses: [], deleted: {} };
+  if (!fileId) return emptyDoc();
   const res = await request(`${DRIVE_API}/files/${fileId}?alt=media`);
   try {
     const data = await res.json();
     return {
       expenses: Array.isArray(data.expenses) ? data.expenses : [],
+      incomes: Array.isArray(data.incomes) ? data.incomes : [],
+      assets: Array.isArray(data.assets) ? data.assets : [],
       deleted: data.deleted && typeof data.deleted === "object" ? data.deleted : {},
     };
   } catch {
-    return { expenses: [], deleted: {} };
+    return emptyDoc();
   }
+}
+
+function emptyDoc() {
+  return { expenses: [], incomes: [], assets: [], deleted: {} };
 }
 
 // Public: persist the full document for the current user.
 export async function saveDoc(doc) {
-  const content = { version: 2, expenses: doc.expenses || [], deleted: doc.deleted || {} };
+  const content = {
+    version: 3,
+    expenses: doc.expenses || [],
+    incomes: doc.incomes || [],
+    assets: doc.assets || [],
+    deleted: doc.deleted || {},
+  };
   if (!fileId) {
     fileId = await findFile();
   }
