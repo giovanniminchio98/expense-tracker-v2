@@ -851,6 +851,17 @@ async function saveEntry() {
     const rec = arr.find((e) => e.id === editingId);
     if (rec) { rec.amount = amount; rec.category = selectedCategory; rec.note = note; rec.date = date; rec.updatedAt = now; }
     editingId = null;
+  } else if (activeType === "asset") {
+    // One holding entry per category per month — update the month's entry if it
+    // already exists, otherwise create it.
+    const ym = monthKey(date);
+    const rec = arr.find((e) => e.category === selectedCategory && monthKey(e.date) === ym);
+    if (rec) {
+      rec.amount = amount; rec.note = note; rec.date = date; rec.updatedAt = now;
+      toast("Updated this month's entry");
+    } else {
+      arr.push({ id: crypto.randomUUID(), date, amount, category: selectedCategory, note, createdAt: now, updatedAt: now });
+    }
   } else {
     arr.push({ id: crypto.randomUUID(), date, amount, category: selectedCategory, note, createdAt: now, updatedAt: now });
   }
