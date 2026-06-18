@@ -143,7 +143,9 @@ body {
 }
 .theme-menu button:hover { background: var(--bg); }
 
-main { max-width: 540px; margin: 0 auto; padding: 16px 16px 84px; }
+/* Bottom padding clears the tab bar AND the floating + button so the last
+   entries are never hidden behind them. */
+main { max-width: 540px; margin: 0 auto; padding: 16px 16px calc(150px + env(safe-area-inset-bottom)); }
 
 .card {
   background: var(--card);
