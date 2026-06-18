@@ -709,9 +709,9 @@ function setStatus(state) {
   else if (state === "syncing") e.innerHTML = spin + "Syncing…";
   else if (state === "saved") { e.textContent = "✓ Saved to Drive"; e.classList.add("status-ok"); }
   else if (state === "synced") { e.textContent = "✓ Connected — synced with Drive"; e.classList.add("status-ok"); }
-  else if (state === "local") { e.textContent = "• Saved on this device — will sync"; e.classList.add("status-warn"); }
-  else if (state === "offline") { e.textContent = "⚠ Offline — saved on this device, will sync"; e.classList.add("status-warn"); }
-  else if (state === "signin") { e.textContent = "• Sign in to sync with Drive"; e.classList.add("status-warn"); }
+  else if (state === "local") { e.textContent = "• Saved on device — tap ⟳ to sync to Drive"; e.classList.add("status-warn"); }
+  else if (state === "offline") { e.textContent = "⚠ Offline — saved on device, will sync when online"; e.classList.add("status-warn"); }
+  else if (state === "signin") { e.textContent = "• Saved on device — tap ⟳ to sync to Drive"; e.classList.add("status-warn"); }
   else e.textContent = "";
 }
 
@@ -799,7 +799,10 @@ function syncNow({ label = "syncing", interactive = false } = {}) {
 async function persist() {
   saveLocal();
   setDirty();
-  await syncNow({ label: "saving", interactive: true });
+  // Background only: never interrupt adding an expense with a sign-in popup.
+  // If the token is valid it syncs silently; if not, it stays local and syncs
+  // on the next refresh/foreground.
+  await syncNow({ label: "saving", interactive: false });
 }
 
 // Manual "refresh from Drive" — always tries (re-auth allowed since it's a tap).
