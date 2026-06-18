@@ -34,10 +34,21 @@ function authHeaders(extra = {}) {
 // Thrown when the access token is missing/expired. The UI uses this to
 // re-prompt the user to sign in.
 export class AuthExpiredError extends Error {}
+// Thrown on network failure / timeout (offline). The UI keeps local data.
+export class NetworkError extends Error {}
 
 async function request(url, options = {}) {
   if (!accessToken) throw new AuthExpiredError("No access token");
-  const res = await fetch(url, { ...options, headers: authHeaders(options.headers) });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 12000);
+  let res;
+  try {
+    res = await fetch(url, { ...options, headers: authHeaders(options.headers), signal: ctrl.signal });
+  } catch (e) {
+    throw new NetworkError(e?.name === "AbortError" ? "Drive request timed out" : "Network error");
+  } finally {
+    clearTimeout(timer);
+  }
   if (res.status === 401 || res.status === 403) {
     accessToken = null;
     throw new AuthExpiredError("Drive access token expired");

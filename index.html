@@ -28,7 +28,8 @@
   <header class="topbar">
     <h1 class="brand">PulsePal</h1>
     <div class="topbar-right">
-      <button id="theme-btn" class="icon-btn" aria-label="Theme">🎨</button>
+      <button id="refresh-btn" class="icon-btn hidden" aria-label="Refresh from Drive"><svg class="ic" viewBox="0 0 24 24"><path d="M20 12a8 8 0 10-2.3 5.6M20 12V6m0 6h-6"/></svg></button>
+      <button id="theme-btn" class="icon-btn" aria-label="Theme"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 000 18z" fill="currentColor" stroke="none"/></svg></button>
       <div id="user-area" class="user-area hidden">
         <img id="user-photo" class="avatar" alt="" referrerpolicy="no-referrer" />
         <button id="logout-btn" class="btn btn-ghost">Sign out</button>
@@ -60,13 +61,13 @@
       <div id="calendar-panel">
         <div class="cal-toolbar">
           <div class="nav-group">
-            <button id="prev-year" class="icon-btn" aria-label="Previous year">«</button>
-            <button id="prev-month" class="icon-btn" aria-label="Previous month">‹</button>
+            <button id="prev-year" class="icon-btn" aria-label="Previous year"><svg class="ic" viewBox="0 0 24 24"><path d="M18 7l-5 5 5 5"/><path d="M12 7l-5 5 5 5"/></svg></button>
+            <button id="prev-month" class="icon-btn" aria-label="Previous month"><svg class="ic" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
           </div>
           <button id="month-label" class="month-label"></button>
           <div class="nav-group">
-            <button id="next-month" class="icon-btn" aria-label="Next month">›</button>
-            <button id="next-year" class="icon-btn" aria-label="Next year">»</button>
+            <button id="next-month" class="icon-btn" aria-label="Next month"><svg class="ic" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+            <button id="next-year" class="icon-btn" aria-label="Next year"><svg class="ic" viewBox="0 0 24 24"><path d="M6 7l5 5-5 5"/><path d="M12 7l5 5-5 5"/></svg></button>
           </div>
           <div id="month-popover" class="popover hidden">
             <input type="month" id="month-input" />
@@ -113,13 +114,22 @@
       </div>
 
       <!-- Quick add (floating, available on every tab) -->
-      <button id="fab-add" class="fab" aria-label="Add expense">＋</button>
+      <button id="fab-add" class="fab" aria-label="Add expense"><svg class="ic" viewBox="0 0 24 24" style="stroke-width:2.5"><path d="M12 5v14M5 12h14"/></svg></button>
 
       <!-- Tab bar -->
       <nav class="tabbar">
-        <button id="tab-calendar" class="tab active">📅<span>Calendar</span></button>
-        <button id="tab-stats" class="tab">📊<span>Stats</span></button>
-        <button id="tab-math" class="tab">🧮<span>Math</span></button>
+        <button id="tab-calendar" class="tab active">
+          <svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg>
+          <span>Calendar</span>
+        </button>
+        <button id="tab-stats" class="tab">
+          <svg class="ic-fill" viewBox="0 0 24 24"><rect x="3" y="11" width="4" height="9" rx="1"/><rect x="10" y="5" width="4" height="15" rx="1"/><rect x="17" y="14" width="4" height="6" rx="1"/></svg>
+          <span>Stats</span>
+        </button>
+        <button id="tab-math" class="tab">
+          <svg class="ic" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01"/></svg>
+          <span>Math</span>
+        </button>
       </nav>
     </section>
 
@@ -134,7 +144,7 @@
     <div class="modal">
       <div class="modal-head">
         <span id="add-date-label" class="modal-date"></span>
-        <button id="add-close" class="icon-btn" aria-label="Close">✕</button>
+        <button id="add-close" class="icon-btn" aria-label="Close"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
       <div id="amount-display" class="amount-display">€0</div>
       <div id="cat-chips" class="cat-chips"></div>
@@ -163,7 +173,7 @@
     <div class="modal">
       <div class="modal-head">
         <span id="day-date-label" class="modal-date"></span>
-        <button id="day-close" class="icon-btn" aria-label="Close">✕</button>
+        <button id="day-close" class="icon-btn" aria-label="Close"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
       <div class="day-total">
         <span>Total</span>
