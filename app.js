@@ -54,6 +54,7 @@ let activeDate = null;
 let activeType = "expense";        // expense | income | asset (in the add modal)
 let selectedCategory = "food";
 let dayModalDate = null;
+let editingId = null;               // id of the entry being edited (null = adding)
 let entered = false;
 
 // --- Drive token (kept in memory first; localStorage is a best-effort cache so
@@ -382,7 +383,9 @@ function renderAssets() {
     li.querySelector(".expense-cat-name").textContent = cat.label;
     li.querySelector(".expense-note").textContent = a.date + (a.note ? " · " + a.note : "");
     li.querySelector(".expense-amount").textContent = fmtMoney(a.amount);
-    li.querySelector(".del-btn").addEventListener("click", () => removeEntry(a.id, "asset"));
+    li.querySelector(".del-btn").addEventListener("click", (ev) => { ev.stopPropagation(); removeEntry(a.id, "asset"); });
+    li.classList.add("tappable");
+    li.addEventListener("click", () => openAddModal(a.date, "asset", ["asset"], a));
     list.appendChild(li);
   }
   el("as-empty").classList.toggle("hidden", assets.length > 0);
@@ -746,22 +749,24 @@ function renderCatChips() {
 function refreshAmountDisplay() {
   el("amount-display").textContent = amountStr === "" ? "€0" : "€" + amountStr;
 }
-// type defaults to expense; pass types to control the toggle (e.g. ["asset"]).
-function openAddModal(dateKey, type = "expense", types = ["expense", "income"]) {
+// Open in "add" mode (default) or "edit" mode when an existing entry is passed.
+function openAddModal(dateKey, type = "expense", types = ["expense", "income"], edit = null) {
   closeDayModal();
-  addTypes = types;
+  editingId = edit ? edit.id : null;
+  addTypes = edit ? [type] : types;     // type is fixed while editing
   activeType = type;
-  activeDate = dateKey;
-  amountStr = "";
-  selectedCategory = CATEGORIES[activeType][0].id;
-  el("note-input").value = "";
-  el("add-date-label").textContent = fmtDateLabel(dateKey);
+  activeDate = edit ? edit.date : dateKey;
+  amountStr = edit ? String(edit.amount) : "";
+  selectedCategory = edit ? edit.category : CATEGORIES[activeType][0].id;
+  el("note-input").value = edit ? (edit.note || "") : "";
+  el("add-date").value = activeDate;
+  el("save-expense").textContent = edit ? "Save changes" : "Add";
   renderTypeToggle();
   renderCatChips();
   refreshAmountDisplay();
   el("add-modal").classList.remove("hidden");
 }
-function closeAddModal() { el("add-modal").classList.add("hidden"); }
+function closeAddModal() { el("add-modal").classList.add("hidden"); editingId = null; }
 function pressKey(key) {
   if (key === "del") amountStr = amountStr.slice(0, -1);
   else if (key === ".") { if (!amountStr.includes(".")) amountStr = (amountStr || "0") + "."; }
@@ -775,18 +780,19 @@ function pressKey(key) {
 async function saveEntry() {
   const amount = parseFloat(amountStr);
   if (!(amount > 0)) { toast("Enter an amount"); return; }
+  const date = el("add-date").value || activeDate;
+  const note = el("note-input").value.trim();
   const now = new Date().toISOString();
-  arrFor(activeType).push({
-    id: crypto.randomUUID(),
-    date: activeDate,
-    amount,
-    category: selectedCategory,
-    note: el("note-input").value.trim(),
-    createdAt: now,
-    updatedAt: now,
-  });
+  const arr = arrFor(activeType);
+  if (editingId) {
+    const rec = arr.find((e) => e.id === editingId);
+    if (rec) { rec.amount = amount; rec.category = selectedCategory; rec.note = note; rec.date = date; rec.updatedAt = now; }
+    editingId = null;
+  } else {
+    arr.push({ id: crypto.randomUUID(), date, amount, category: selectedCategory, note, createdAt: now, updatedAt: now });
+  }
   closeAddModal();
-  renderCalendar();
+  refreshAll();
   await persist();
 }
 
@@ -817,7 +823,9 @@ function entryRow(e, type) {
   const note = li.querySelector(".expense-note");
   if (e.note) note.textContent = e.note; else note.remove();
   li.querySelector(".expense-amount").textContent = (type === "income" ? "+" : "−") + fmtMoney(e.amount);
-  li.querySelector(".del-btn").addEventListener("click", () => removeEntry(e.id, type));
+  li.querySelector(".del-btn").addEventListener("click", (ev) => { ev.stopPropagation(); removeEntry(e.id, type); });
+  li.classList.add("tappable");
+  li.addEventListener("click", () => openAddModal(e.date, type, [type], e));
   return li;
 }
 function renderDayModal(dateKey) {

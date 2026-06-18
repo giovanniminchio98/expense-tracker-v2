@@ -519,6 +519,17 @@ svg.ic-fill { fill: currentColor; stroke: none; }
 
 .modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .modal-date { font-weight: 700; font-size: 1.05rem; }
+.date-input {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 7px 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.expense-item.tappable { cursor: pointer; }
+.expense-item.tappable:active { background: var(--bg); }
 
 /* Expense/Income/Holding segmented toggle */
 .type-toggle {
