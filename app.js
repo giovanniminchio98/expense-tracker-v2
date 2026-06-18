@@ -947,11 +947,18 @@ function setStatus(state) {
   else if (state === "signin") { e.textContent = "• Saved on device — tap ⟳ to sync to Drive"; e.classList.add("status-warn"); }
   else e.textContent = "";
 
-  // Reflect sync health on the always-visible refresh arrow (green when synced).
+  // While actively syncing, leave the arrow neutral (it spins); otherwise
+  // reflect the real state.
+  if (state !== "saving" && state !== "syncing") refreshSyncIcon();
+}
+
+// Always-visible indicator: green when everything is saved to Drive, amber
+// when there are local changes not yet pushed.
+function refreshSyncIcon() {
   const r = el("refresh-btn");
   r.classList.remove("ok", "warn");
-  if (state === "saved" || state === "synced") r.classList.add("ok");
-  else if (state === "local" || state === "offline" || state === "signin") r.classList.add("warn");
+  r.classList.add(isDirty() ? "warn" : "ok");
+  r.title = isDirty() ? "Unsynced changes — tap to sync to Drive" : "Synced with Drive";
 }
 
 // Obtain a fresh Google token. Must be called from a user gesture (save/delete)
@@ -1190,9 +1197,12 @@ function init() {
   // always offer to add today's expense). Sync with Drive in the background.
   const doc = loadLocal();
   expenses = doc.expenses;
+  incomes = doc.incomes;
+  assets = doc.assets;
   deleted = doc.deleted;
+  refreshSyncIcon();
   const token = getToken();
-  if (token || expenses.length) {
+  if (token || expenses.length || incomes.length || assets.length) {
     enterAppLocal(true);
     if (token) syncNow({ label: "syncing", interactive: false });
   }
