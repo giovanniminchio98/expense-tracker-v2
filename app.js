@@ -8,16 +8,35 @@ import * as store from "./drive-store.js";
 
 const el = (id) => document.getElementById(id);
 
-// Fixed categories — no custom ones.
-const CATEGORIES = [
-  { id: "food", label: "Food", icon: "🍽️" },
-  { id: "transport", label: "Transport", icon: "🚆" },
-  { id: "shopping", label: "Shopping", icon: "🛍️" },
-  { id: "bills", label: "Bills", icon: "🧾" },
-  { id: "fun", label: "Fun", icon: "🍿" },
-  { id: "other", label: "Other", icon: "🏷️" },
-];
-const catById = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[CATEGORIES.length - 1];
+// Fixed categories per record type — no custom ones (use the note as a label).
+const CATEGORIES = {
+  expense: [
+    { id: "food", label: "Food", icon: "🍽️" },
+    { id: "transport", label: "Transport", icon: "🚆" },
+    { id: "shopping", label: "Shopping", icon: "🛍️" },
+    { id: "bills", label: "Bills", icon: "🧾" },
+    { id: "fun", label: "Fun", icon: "🍿" },
+    { id: "other", label: "Other", icon: "🏷️" },
+  ],
+  income: [
+    { id: "salary", label: "Salary", icon: "💼" },
+    { id: "bonus", label: "Bonus", icon: "🎁" },
+    { id: "other", label: "Other", icon: "🏷️" },
+  ],
+  asset: [
+    { id: "investments", label: "Investments", icon: "📈" },
+    { id: "savings", label: "Savings", icon: "🏦" },
+    { id: "crypto", label: "Crypto", icon: "🪙" },
+    { id: "other", label: "Other", icon: "🏷️" },
+  ],
+};
+const TYPE_LABELS = { expense: "Expense", income: "Income", asset: "Holding" };
+function catById(type, id) {
+  const list = CATEGORIES[type] || CATEGORIES.expense;
+  return list.find((c) => c.id === id) || list[list.length - 1];
+}
+// The record array for a given type.
+function arrFor(type) { return type === "income" ? incomes : type === "asset" ? assets : expenses; }
 
 const MONTHS = ["January","February","March","April","May","June","July",
   "August","September","October","November","December"];
@@ -26,12 +45,16 @@ const WEEKDAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
 // --- State ---
 let expenses = [];
-let deleted = {};                  // id -> deletion timestamp (ms), for safe merges
+let incomes = [];
+let assets = [];
+let deleted = {};                  // id -> deletion timestamp (ms), shared, for safe merges
 let viewYear, viewMonth;
 let amountStr = "";
 let activeDate = null;
+let activeType = "expense";        // expense | income | asset (in the add modal)
 let selectedCategory = "food";
 let dayModalDate = null;
+let editingId = null;               // id of the entry being edited (null = adding)
 let entered = false;
 
 // --- Drive token (kept in memory first; localStorage is a best-effort cache so
@@ -60,21 +83,24 @@ function clearToken() {
 // --- Local copy of the document (so the app opens instantly and never loses
 //     data even if Drive is briefly unreachable). ---
 const LOCAL_KEY = "et_doc";
-function localDoc() { return { expenses, deleted }; }
+function localDoc() { return { expenses, incomes, assets, deleted }; }
 function saveLocal() { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(localDoc())); } catch {} }
+function normalizeDoc(d) {
+  return {
+    expenses: Array.isArray(d?.expenses) ? d.expenses : [],
+    incomes: Array.isArray(d?.incomes) ? d.incomes : [],
+    assets: Array.isArray(d?.assets) ? d.assets : [],
+    deleted: d?.deleted && typeof d.deleted === "object" ? d.deleted : {},
+  };
+}
 function loadLocal() {
   try {
     const d = JSON.parse(localStorage.getItem(LOCAL_KEY) || "null");
-    if (d && Array.isArray(d.expenses)) return { expenses: d.expenses, deleted: d.deleted || {} };
+    if (d && Array.isArray(d.expenses)) return normalizeDoc(d);
   } catch {}
-  // migrate any older "et_expenses" array if present
-  try {
-    const old = JSON.parse(localStorage.getItem("et_expenses") || "null");
-    if (Array.isArray(old)) return { expenses: old, deleted: {} };
-  } catch {}
-  return { expenses: [], deleted: {} };
+  return normalizeDoc(null);
 }
-function clearLocal() { try { localStorage.removeItem(LOCAL_KEY); localStorage.removeItem("et_expenses"); } catch {} }
+function clearLocal() { try { localStorage.removeItem(LOCAL_KEY); } catch {} }
 
 // "Dirty" = local has changes not yet confirmed saved to Drive.
 const DIRTY_KEY = "et_dirty";
@@ -82,25 +108,32 @@ function setDirty() { try { localStorage.setItem(DIRTY_KEY, "1"); } catch {} }
 function clearDirty() { try { localStorage.removeItem(DIRTY_KEY); } catch {} }
 function isDirty() { try { return localStorage.getItem(DIRTY_KEY) === "1"; } catch { return false; } }
 
-// Merge two documents without losing data: union expenses by id (newest wins),
-// union deletion tombstones (latest wins), and drop expenses that were deleted
-// after their last update.
+// Merge two documents without losing data: for each record array, union by id
+// (newest wins), union deletion tombstones (latest wins), and drop records that
+// were deleted after their last update.
 function mergeDocs(a, b) {
   const del = {};
   for (const src of [a.deleted || {}, b.deleted || {}])
     for (const id in src) del[id] = Math.max(del[id] || 0, src[id] || 0);
 
-  const byId = {};
   const tOf = (e) => Date.parse(e.updatedAt || e.createdAt || 0) || 0;
-  for (const e of [...(a.expenses || []), ...(b.expenses || [])]) {
-    if (!e || !e.id) continue;
-    if (!byId[e.id] || tOf(e) >= tOf(byId[e.id])) byId[e.id] = e;
-  }
-  const merged = Object.values(byId).filter((e) => {
-    const dt = del[e.id];
-    return !dt || tOf(e) > dt;   // keep only if re-added after the deletion
-  });
-  return { expenses: merged, deleted: del };
+  const mergeArr = (x, y) => {
+    const byId = {};
+    for (const e of [...(x || []), ...(y || [])]) {
+      if (!e || !e.id) continue;
+      if (!byId[e.id] || tOf(e) >= tOf(byId[e.id])) byId[e.id] = e;
+    }
+    return Object.values(byId).filter((e) => {
+      const dt = del[e.id];
+      return !dt || tOf(e) > dt;
+    });
+  };
+  return {
+    expenses: mergeArr(a.expenses, b.expenses),
+    incomes: mergeArr(a.incomes, b.incomes),
+    assets: mergeArr(a.assets, b.assets),
+    deleted: del,
+  };
 }
 
 // --- Utilities ---
@@ -122,9 +155,9 @@ function fmtDateLabel(key) {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
   });
 }
-function totalsByDate() {
+function totalsByDate(arr) {
   const map = {};
-  for (const e of expenses) map[e.date] = (map[e.date] || 0) + Number(e.amount || 0);
+  for (const e of arr) map[e.date] = (map[e.date] || 0) + Number(e.amount || 0);
   return map;
 }
 
@@ -272,15 +305,153 @@ const neuro = (() => {
 // =====================================================================
 //  Tabs
 // =====================================================================
+const TABS = ["calendar", "stats", "math", "assets"];
 function switchTab(tab) {
-  el("calendar-panel").classList.toggle("hidden", tab !== "calendar");
-  el("stats-panel").classList.toggle("hidden", tab !== "stats");
-  el("math-panel").classList.toggle("hidden", tab !== "math");
-  el("tab-calendar").classList.toggle("active", tab === "calendar");
-  el("tab-stats").classList.toggle("active", tab === "stats");
-  el("tab-math").classList.toggle("active", tab === "math");
+  for (const t of TABS) {
+    el(`${t}-panel`).classList.toggle("hidden", t !== tab);
+    el(`tab-${t}`).classList.toggle("active", t === tab);
+  }
   if (tab === "stats") renderStats();
   if (tab === "math") renderMath();
+  if (tab === "assets") renderAssets();
+}
+
+// =====================================================================
+//  Assets (savings / investments / crypto — independent of income/expenses)
+// =====================================================================
+
+// Latest snapshot per asset category.
+function latestByCategory() {
+  const latest = {};
+  for (const a of assets) {
+    const cur = latest[a.category];
+    if (!cur || a.date > cur.date || (a.date === cur.date && (a.createdAt || "") > (cur.createdAt || "")))
+      latest[a.category] = a;
+  }
+  return latest;
+}
+function assetsTotal() {
+  return Object.values(latestByCategory()).reduce((s, a) => s + Number(a.amount || 0), 0);
+}
+
+// Total value over time: at each date that has an entry, sum the latest-known
+// value per category up to that date (a step series of the changes).
+function assetSeries() {
+  if (!assets.length) return [];
+  const sorted = [...assets].sort((a, b) => a.date.localeCompare(b.date) || (a.createdAt || "").localeCompare(b.createdAt || ""));
+  const latest = {};
+  const byDate = new Map();
+  for (const a of sorted) {
+    latest[a.category] = a;
+    const total = Object.values(latest).reduce((s, x) => s + Number(x.amount || 0), 0);
+    byDate.set(a.date, total);   // last entry on a date wins
+  }
+  return [...byDate.entries()].map(([date, value]) => ({ short: date.slice(5), label: date, value }));
+}
+
+function signedPct(p) {
+  if (p === null || !isFinite(p)) return "—";
+  return (p >= 0 ? "+" : "−") + Math.abs(p).toFixed(1) + "%";
+}
+// Latest two distinct-date snapshots for a category (for change vs previous).
+function lastTwo(catId) {
+  const es = assets.filter((a) => a.category === catId)
+    .sort((a, b) => a.date.localeCompare(b.date) || (a.createdAt || "").localeCompare(b.createdAt || ""));
+  return [es[es.length - 1], es[es.length - 2]];
+}
+
+function renderAssets() {
+  const total = assetsTotal();
+  el("as-total").textContent = fmtMoney(total);
+
+  const series = assetSeries();           // [{label:date, value}], ascending
+  // All-time and 30-day change %
+  const setChg = (id, base, cur) => {
+    const e = el(id);
+    const pct = base ? ((cur - base) / base) * 100 : null;
+    e.textContent = signedPct(pct);
+    e.className = "amt-" + (pct === null ? "" : pct >= 0 ? "inc" : "exp");
+  };
+  if (series.length) {
+    setChg("as-chg-all", series[0].value, total);
+    const cutoff = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+    let base30 = series[0].value;
+    for (const p of series) { if (p.label <= cutoff) base30 = p.value; else break; }
+    setChg("as-chg-30", base30, total);
+  } else {
+    el("as-chg-all").textContent = "—"; el("as-chg-30").textContent = "—";
+    el("as-chg-all").className = ""; el("as-chg-30").className = "";
+  }
+
+  // Allocation (latest value + % of total)
+  const latest = latestByCategory();
+  const alloc = el("as-alloc");
+  alloc.innerHTML = "";
+  const allocRows = CATEGORIES.asset
+    .map((c) => ({ c, value: latest[c.id] ? Number(latest[c.id].amount || 0) : 0 }))
+    .filter((r) => r.value > 0)
+    .sort((a, b) => b.value - a.value);
+  if (!allocRows.length) alloc.innerHTML = `<p class="empty">No entries yet.</p>`;
+  for (const r of allocRows) {
+    const pct = total ? (r.value / total) * 100 : 0;
+    const row = document.createElement("div");
+    row.className = "bar-row";
+    row.innerHTML = `<span class="bar-label">${r.c.icon} ${r.c.label}</span>
+      <span class="bar-track"><span class="bar-fill"></span></span>
+      <span class="bar-value"></span>`;
+    row.querySelector(".bar-fill").style.width = pct + "%";
+    row.querySelector(".bar-value").textContent = `${fmtMoney(r.value)} · ${pct.toFixed(0)}%`;
+    alloc.appendChild(row);
+  }
+
+  // Per-type latest change (vs previous entry)
+  const chg = el("as-changes");
+  chg.innerHTML = "";
+  const changeRows = CATEGORIES.asset.map((c) => {
+    const [last, prev] = lastTwo(c.id);
+    if (!last) return null;
+    const pct = prev && prev.amount ? ((last.amount - prev.amount) / prev.amount) * 100 : null;
+    return { c, value: Number(last.amount || 0), pct };
+  }).filter(Boolean);
+  if (!changeRows.length) chg.innerHTML = `<p class="empty">Add a second entry for a type to see its change.</p>`;
+  for (const r of changeRows) {
+    const item = document.createElement("div");
+    item.className = "change-row";
+    item.innerHTML = `<span>${r.c.icon} ${r.c.label}</span>
+      <span class="change-val"><span class="muted">${fmtMoney(r.value)}</span> <b class="amt-${r.pct === null ? "" : r.pct >= 0 ? "inc" : "exp"}">${signedPct(r.pct)}</b></span>`;
+    chg.appendChild(item);
+  }
+
+  if (assets.length) renderChartInto("assets-chart", series, {});
+  else el("assets-chart").innerHTML = `<p class="empty">Add entries to see the trend.</p>`;
+
+  const list = el("as-list");
+  list.innerHTML = "";
+  const recent = [...assets].sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || "").localeCompare(a.createdAt || ""));
+  for (const a of recent) {
+    const cat = catById("asset", a.category);
+    const li = document.createElement("li");
+    li.className = "expense-item";
+    li.innerHTML = `
+      <span class="expense-cat-icon"></span>
+      <span class="expense-main">
+        <span class="expense-cat-name"></span>
+        <span class="expense-note"></span>
+      </span>
+      <span class="expense-right">
+        <span class="expense-amount"></span>
+        <button class="del-btn" title="Delete" aria-label="Delete">${DEL_ICON}</button>
+      </span>`;
+    li.querySelector(".expense-cat-icon").textContent = cat.icon;
+    li.querySelector(".expense-cat-name").textContent = cat.label;
+    li.querySelector(".expense-note").textContent = a.date + (a.note ? " · " + a.note : "");
+    li.querySelector(".expense-amount").textContent = fmtMoney(a.amount);
+    li.querySelector(".del-btn").addEventListener("click", (ev) => { ev.stopPropagation(); removeEntry(a.id, "asset"); });
+    li.classList.add("tappable");
+    li.addEventListener("click", () => openAddModal(a.date, "asset", ["asset"], a));
+    list.appendChild(li);
+  }
+  el("as-empty").classList.toggle("hidden", assets.length > 0);
 }
 
 // =====================================================================
@@ -289,7 +460,8 @@ function switchTab(tab) {
 function renderCalendar() {
   el("month-label").textContent = `${MONTHS[viewMonth]} ${viewYear}`;
 
-  const totals = totalsByDate();
+  const expTotals = totalsByDate(expenses);
+  const incTotals = totalsByDate(incomes);
   const grid = el("calendar");
   grid.innerHTML = "";
 
@@ -303,11 +475,12 @@ function renderCalendar() {
     grid.appendChild(blank);
   }
 
-  let monthTotal = 0;
+  let monthExp = 0, monthInc = 0;
   for (let d = 1; d <= daysInMonth; d++) {
     const key = toKey(viewYear, viewMonth, d);
-    const amt = totals[key] || 0;
-    monthTotal += amt;
+    const exp = expTotals[key] || 0;
+    const inc = incTotals[key] || 0;
+    monthExp += exp; monthInc += inc;
 
     const cell = document.createElement("div");
     cell.className = "day" + (key === tKey ? " today" : "");
@@ -315,89 +488,91 @@ function renderCalendar() {
     num.className = "day-num";
     num.textContent = String(d);
     cell.appendChild(num);
-    if (amt > 0) {
-      const a = document.createElement("span");
-      a.className = "day-amt";
-      a.textContent = fmtMoneyShort(amt);
-      cell.appendChild(a);
-    }
+    const amts = document.createElement("span");
+    amts.className = "day-amts";
+    if (exp > 0) amts.innerHTML += `<span class="day-exp">${fmtMoneyShort(exp)}</span>`;
+    if (inc > 0) amts.innerHTML += `<span class="day-inc">${fmtMoneyShort(inc)}</span>`;
+    cell.appendChild(amts);
     cell.addEventListener("click", () => openDayModal(key));
     grid.appendChild(cell);
   }
-  el("month-total-value").textContent = fmtMoney(monthTotal);
+  el("month-total-value").innerHTML =
+    `<span class="day-exp">−${fmtMoney(monthExp)}</span> &nbsp; <span class="day-inc">+${fmtMoney(monthInc)}</span>`;
 }
 
 // =====================================================================
 //  Stats (overview)
 // =====================================================================
 function renderStats() {
-  el("stat-empty").classList.toggle("hidden", expenses.length > 0);
-
-  const allTotal = expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
-  el("stat-alltime").textContent = fmtMoney(allTotal);
-  el("stat-count").textContent = String(expenses.length);
-
-  const byMonth = {};
-  for (const e of expenses) byMonth[monthKey(e.date)] = (byMonth[monthKey(e.date)] || 0) + Number(e.amount || 0);
-  const monthCount = Object.keys(byMonth).length || 1;
-  el("stat-avg").textContent = fmtMoney(allTotal / monthCount);
-
+  el("stat-empty").classList.toggle("hidden", expenses.length + incomes.length > 0);
   const now = new Date();
-  const curKey = toKey(now.getFullYear(), now.getMonth(), 1).slice(0, 7);
-  el("stat-thismonth").textContent = fmtMoney(byMonth[curKey] || 0);
-
-  // By category for the viewed month
-  el("stat-cat-title").textContent = `${MONTHS[viewMonth]} ${viewYear} by category`;
+  const nowY = now.getFullYear(), nowM = now.getMonth();
+  const curKey = toKey(nowY, nowM, 1).slice(0, 7);
   const viewKey = toKey(viewYear, viewMonth, 1).slice(0, 7);
+
+  const sumExpAll = expenses.reduce((s, e) => s + Number(e.amount || 0), 0);
+  const sumIncAll = incomes.reduce((s, e) => s + Number(e.amount || 0), 0);
+  const net = sumIncAll - sumExpAll;
+
+  // Per-month totals (expenses + income)
+  const byMonth = {}, incByMonth = {};
+  for (const e of expenses) byMonth[monthKey(e.date)] = (byMonth[monthKey(e.date)] || 0) + Number(e.amount || 0);
+  for (const e of incomes) incByMonth[monthKey(e.date)] = (incByMonth[monthKey(e.date)] || 0) + Number(e.amount || 0);
+  const monthNet = (incByMonth[curKey] || 0) - (byMonth[curKey] || 0);
+
+  el("stat-income").textContent = "+" + fmtMoney(sumIncAll);
+  el("stat-expense").textContent = "−" + fmtMoney(sumExpAll);
+  const setSigned = (id, v) => {
+    const e = el(id);
+    e.textContent = (v >= 0 ? "+" : "−") + fmtMoney(Math.abs(v));
+    e.className = "amt-" + (v >= 0 ? "inc" : "exp");
+  };
+  setSigned("stat-net", net);
+  setSigned("stat-month-net", monthNet);
+
+  // Monthly expenses & income charts for the viewed year
+  el("chart-months-title").textContent = `Monthly expenses — ${viewYear}`;
+  el("chart-income-title").textContent = `Monthly income — ${viewYear}`;
+  const hi = viewYear === nowY ? nowM : -1;
+  const expChart = MONTHS_SHORT.map((m, idx) => ({ short: m[0], label: `${m} ${viewYear}`, value: byMonth[`${viewYear}-${pad(idx + 1)}`] || 0 }));
+  const incChart = MONTHS_SHORT.map((m, idx) => ({ short: m[0], label: `${m} ${viewYear}`, value: incByMonth[`${viewYear}-${pad(idx + 1)}`] || 0 }));
+  renderChartInto("chart-months", expChart, { highlightIndex: hi, color: "#dc2626" });
+  renderChartInto("chart-income", incChart, { highlightIndex: hi, color: "#16a34a" });
+
+  // Expenses by category (viewed month)
+  el("stat-cat-title").textContent = `Expenses — ${MONTHS[viewMonth]} ${viewYear}`;
   const byCat = {};
   for (const e of expenses) {
     if (monthKey(e.date) !== viewKey) continue;
-    byCat[catById(e.category).id] = (byCat[catById(e.category).id] || 0) + Number(e.amount || 0);
+    byCat[e.category] = (byCat[e.category] || 0) + Number(e.amount || 0);
   }
-  const catRows = CATEGORIES
+  renderBars(el("stat-cats"), CATEGORIES.expense
     .map((c) => ({ label: `${c.icon} ${c.label}`, value: byCat[c.id] || 0 }))
-    .filter((r) => r.value > 0)
-    .sort((a, b) => b.value - a.value);
-  renderBars(el("stat-cats"), catRows, "No expenses this month.");
+    .filter((r) => r.value > 0).sort((a, b) => b.value - a.value), "No expenses this month.");
 
-  // Chart: monthly totals for the viewed year
-  el("chart-months-title").textContent = `Monthly totals — ${viewYear}`;
-  const nowM = now.getMonth(), nowY = now.getFullYear();
-  const monthlyChart = MONTHS_SHORT.map((m, idx) => ({
-    short: m[0],
-    label: `${m} ${viewYear}`,
-    value: byMonth[`${viewYear}-${pad(idx + 1)}`] || 0,
-  }));
-  const hi = viewYear === nowY ? nowM : -1;
-  renderChartInto("chart-months", monthlyChart, { highlightIndex: hi });
-
-  // Chart: totals by year
-  const byYear = {};
-  for (const e of expenses) {
-    const y = e.date.slice(0, 4);
-    byYear[y] = (byYear[y] || 0) + Number(e.amount || 0);
+  // Income by category (viewed month)
+  el("stat-inc-cat-title").textContent = `Income — ${MONTHS[viewMonth]} ${viewYear}`;
+  const byInc = {};
+  for (const e of incomes) {
+    if (monthKey(e.date) !== viewKey) continue;
+    byInc[e.category] = (byInc[e.category] || 0) + Number(e.amount || 0);
   }
-  const yearChart = Object.keys(byYear).sort()
-    .map((y) => ({ short: y, label: y, value: byYear[y] }));
-  if (yearChart.length) {
-    renderChartInto("chart-years", yearChart, { highlightIndex: yearChart.findIndex((r) => r.short === String(nowY)) });
-  } else {
-    el("chart-years").innerHTML = `<p class="empty">No data yet.</p>`;
-  }
+  renderBars(el("stat-inc-cats"), CATEGORIES.income
+    .map((c) => ({ label: `${c.icon} ${c.label}`, value: byInc[c.id] || 0 }))
+    .filter((r) => r.value > 0).sort((a, b) => b.value - a.value), "No income this month.");
 
-  // Month by month (all months, newest first)
-  const monthRows = Object.keys(byMonth)
-    .sort((a, b) => b.localeCompare(a))
-    .map((k) => {
-      const [y, m] = k.split("-").map(Number);
-      return { label: `${MONTHS_SHORT[m - 1]} ${y}`, value: byMonth[k] };
-    });
-  renderBars(el("stat-months"), monthRows, "No data yet.");
+  // Net by month (all months, newest first)
+  const months = new Set([...Object.keys(byMonth), ...Object.keys(incByMonth)]);
+  const monthRows = [...months].sort((a, b) => b.localeCompare(a)).map((k) => {
+    const [y, m] = k.split("-").map(Number);
+    return { label: `${MONTHS_SHORT[m - 1]} ${y}`, value: (incByMonth[k] || 0) - (byMonth[k] || 0) };
+  });
+  renderBars(el("stat-months"), monthRows, "No data yet.", true);
 }
 
 // Minimal dependency-free SVG bar chart (scales to width, theme-aware,
 // interactive: each bar shows its amount and can be tapped/hovered).
-function barChartSVG(rows, { highlightIndex = -1 } = {}) {
+function barChartSVG(rows, { highlightIndex = -1, color = null } = {}) {
   const W = 320, H = 162, padT = 20, padB = 22, padX = 6;
   const n = rows.length || 1;
   const max = Math.max(1, ...rows.map((r) => r.value));
@@ -412,7 +587,7 @@ function barChartSVG(rows, { highlightIndex = -1 } = {}) {
     const cx = padX + i * bw + bw / 2;
     const x = cx - innerW / 2;
     const y = baseY - h;
-    const fill = i === highlightIndex ? "var(--primary)" : "var(--has-exp)";
+    const fill = i === highlightIndex ? "var(--primary)" : (color || "var(--has-exp)");
     const op = r.value > 0 ? 1 : 0.18;
     svg += `<rect class="cbar" data-i="${i}" data-label="${r.label}" data-amt="${fmtMoney(r.value)}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${innerW.toFixed(1)}" height="${Math.max(0, h).toFixed(1)}" rx="2" fill="${fill}" opacity="${op}"><title>${r.label}: ${fmtMoney(r.value)}</title></rect>`;
     if (r.value > 0 && (!dense || i === highlightIndex)) {
@@ -448,7 +623,7 @@ function onChartPoint(cont, e) {
   if (rect) selectChartBar(cont, Number(rect.dataset.i));
 }
 
-function renderBars(container, rows, emptyMsg) {
+function renderBars(container, rows, emptyMsg, signed = false) {
   container.innerHTML = "";
   if (!rows.length) {
     if (emptyMsg) {
@@ -459,14 +634,23 @@ function renderBars(container, rows, emptyMsg) {
     }
     return;
   }
-  const max = Math.max(1, ...rows.map((r) => r.value));
+  const max = Math.max(1, ...rows.map((r) => Math.abs(r.value)));
   for (const r of rows) {
     const row = document.createElement("div");
     row.className = "bar-row";
     row.innerHTML = `<span class="bar-label"></span><span class="bar-track"><span class="bar-fill"></span></span><span class="bar-value"></span>`;
     row.querySelector(".bar-label").textContent = r.label;
-    row.querySelector(".bar-fill").style.width = (r.value / max * 100) + "%";
-    row.querySelector(".bar-value").textContent = fmtMoney(r.value);
+    const fill = row.querySelector(".bar-fill");
+    fill.style.width = (Math.abs(r.value) / max * 100) + "%";
+    const valEl = row.querySelector(".bar-value");
+    if (signed) {
+      const pos = r.value >= 0;
+      fill.style.background = pos ? "#16a34a" : "#dc2626";
+      valEl.textContent = (pos ? "+" : "−") + fmtMoney(Math.abs(r.value));
+      valEl.className = "bar-value amt-" + (pos ? "inc" : "exp");
+    } else {
+      valEl.textContent = fmtMoney(r.value);
+    }
     container.appendChild(row);
   }
 }
@@ -509,7 +693,7 @@ function renderMath() {
   const monthTotals = Object.values(byMonth);
 
   // Per-day totals
-  const byDay = totalsByDate();
+  const byDay = totalsByDate(expenses);
   const dayTotals = Object.values(byDay);
 
   // Per weekday
@@ -523,7 +707,7 @@ function renderMath() {
   // Categories
   const catSpend = {}, catCount = {};
   for (const e of expenses) {
-    const id = catById(e.category).id;
+    const id = catById("expense", e.category).id;
     catSpend[id] = (catSpend[id] || 0) + Number(e.amount || 0);
     catCount[id] = (catCount[id] || 0) + 1;
   }
@@ -564,8 +748,8 @@ function renderMath() {
       ["This vs last month", momChange === null ? "—" : (momChange >= 0 ? "+" : "") + momChange.toFixed(0) + "%"],
     ]],
     ["Categories", [
-      ["Top by spend", topCatSpend ? `${catById(topCatSpend[0]).label} (${fmtMoney(topCatSpend[1])})` : "—"],
-      ["Top by count", topCatCount ? `${catById(topCatCount[0]).label} (${topCatCount[1]}×)` : "—"],
+      ["Top by spend", topCatSpend ? `${catById("expense", topCatSpend[0]).label} (${fmtMoney(topCatSpend[1])})` : "—"],
+      ["Top by count", topCatCount ? `${catById("expense", topCatCount[0]).label} (${topCatCount[1]}×)` : "—"],
       ["Categories used", String(Object.keys(catSpend).length)],
     ]],
   ];
@@ -591,10 +775,32 @@ function renderMath() {
 // =====================================================================
 //  Add-expense modal (dial pad)
 // =====================================================================
+const DEL_ICON = `<svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13"/></svg>`;
+
+let addTypes = ["expense", "income"];  // which type buttons to show in the toggle
+
+function renderTypeToggle() {
+  const wrap = el("type-toggle");
+  wrap.innerHTML = "";
+  wrap.classList.toggle("hidden", addTypes.length < 2);
+  for (const t of addTypes) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "seg" + (t === activeType ? " active" : "") + ` seg-${t}`;
+    b.textContent = TYPE_LABELS[t];
+    b.addEventListener("click", () => {
+      activeType = t;
+      selectedCategory = CATEGORIES[t][0].id;
+      renderTypeToggle();
+      renderCatChips();
+    });
+    wrap.appendChild(b);
+  }
+}
 function renderCatChips() {
   const wrap = el("cat-chips");
   wrap.innerHTML = "";
-  for (const c of CATEGORIES) {
+  for (const c of CATEGORIES[activeType]) {
     const chip = document.createElement("button");
     chip.type = "button";
     chip.className = "chip" + (c.id === selectedCategory ? " active" : "");
@@ -606,18 +812,24 @@ function renderCatChips() {
 function refreshAmountDisplay() {
   el("amount-display").textContent = amountStr === "" ? "€0" : "€" + amountStr;
 }
-function openAddModal(dateKey) {
-  closeDayModal(); // ensure the add sheet sits on top of any day sheet
-  activeDate = dateKey;
-  amountStr = "";
-  selectedCategory = "food";
-  el("note-input").value = "";
-  el("add-date-label").textContent = fmtDateLabel(dateKey);
+// Open in "add" mode (default) or "edit" mode when an existing entry is passed.
+function openAddModal(dateKey, type = "expense", types = ["expense", "income"], edit = null) {
+  closeDayModal();
+  editingId = edit ? edit.id : null;
+  addTypes = edit ? [type] : types;     // type is fixed while editing
+  activeType = type;
+  activeDate = edit ? edit.date : dateKey;
+  amountStr = edit ? String(edit.amount) : "";
+  selectedCategory = edit ? edit.category : CATEGORIES[activeType][0].id;
+  el("note-input").value = edit ? (edit.note || "") : "";
+  el("add-date").value = activeDate;
+  el("save-expense").textContent = edit ? "Save changes" : "Add";
+  renderTypeToggle();
   renderCatChips();
   refreshAmountDisplay();
   el("add-modal").classList.remove("hidden");
 }
-function closeAddModal() { el("add-modal").classList.add("hidden"); }
+function closeAddModal() { el("add-modal").classList.add("hidden"); editingId = null; }
 function pressKey(key) {
   if (key === "del") amountStr = amountStr.slice(0, -1);
   else if (key === ".") { if (!amountStr.includes(".")) amountStr = (amountStr || "0") + "."; }
@@ -628,21 +840,33 @@ function pressKey(key) {
   }
   refreshAmountDisplay();
 }
-async function saveExpense() {
+async function saveEntry() {
   const amount = parseFloat(amountStr);
   if (!(amount > 0)) { toast("Enter an amount"); return; }
+  const date = el("add-date").value || activeDate;
+  const note = el("note-input").value.trim();
   const now = new Date().toISOString();
-  expenses.push({
-    id: crypto.randomUUID(),
-    date: activeDate,
-    amount,
-    category: selectedCategory,
-    note: el("note-input").value.trim(),
-    createdAt: now,
-    updatedAt: now,
-  });
+  const arr = arrFor(activeType);
+  if (editingId) {
+    const rec = arr.find((e) => e.id === editingId);
+    if (rec) { rec.amount = amount; rec.category = selectedCategory; rec.note = note; rec.date = date; rec.updatedAt = now; }
+    editingId = null;
+  } else if (activeType === "asset") {
+    // One holding entry per category per month — update the month's entry if it
+    // already exists, otherwise create it.
+    const ym = monthKey(date);
+    const rec = arr.find((e) => e.category === selectedCategory && monthKey(e.date) === ym);
+    if (rec) {
+      rec.amount = amount; rec.note = note; rec.date = date; rec.updatedAt = now;
+      toast("Updated this month's entry");
+    } else {
+      arr.push({ id: crypto.randomUUID(), date, amount, category: selectedCategory, note, createdAt: now, updatedAt: now });
+    }
+  } else {
+    arr.push({ id: crypto.randomUUID(), date, amount, category: selectedCategory, note, createdAt: now, updatedAt: now });
+  }
   closeAddModal();
-  renderCalendar();
+  refreshAll();
   await persist();
 }
 
@@ -654,43 +878,52 @@ function openDayModal(dateKey) {
   renderDayModal(dateKey);
   el("day-modal").classList.remove("hidden");
 }
+function entryRow(e, type) {
+  const cat = catById(type, e.category);
+  const li = document.createElement("li");
+  li.className = "expense-item";
+  li.innerHTML = `
+    <span class="expense-cat-icon"></span>
+    <span class="expense-main">
+      <span class="expense-cat-name"></span>
+      <span class="expense-note"></span>
+    </span>
+    <span class="expense-right">
+      <span class="expense-amount ${type === "income" ? "amt-inc" : "amt-exp"}"></span>
+      <button class="del-btn" title="Delete" aria-label="Delete">${DEL_ICON}</button>
+    </span>`;
+  li.querySelector(".expense-cat-icon").textContent = cat.icon;
+  li.querySelector(".expense-cat-name").textContent = cat.label;
+  const note = li.querySelector(".expense-note");
+  if (e.note) note.textContent = e.note; else note.remove();
+  li.querySelector(".expense-amount").textContent = (type === "income" ? "+" : "−") + fmtMoney(e.amount);
+  li.querySelector(".del-btn").addEventListener("click", (ev) => { ev.stopPropagation(); removeEntry(e.id, type); });
+  li.classList.add("tappable");
+  li.addEventListener("click", () => openAddModal(e.date, type, [type], e));
+  return li;
+}
 function renderDayModal(dateKey) {
   el("day-date-label").textContent = fmtDateLabel(dateKey);
-  const items = expenses.filter((e) => e.date === dateKey)
-    .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+  const exp = expenses.filter((e) => e.date === dateKey).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+  const inc = incomes.filter((e) => e.date === dateKey).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
 
   const list = el("day-list");
   list.innerHTML = "";
-  let total = 0;
-  for (const e of items) {
-    total += Number(e.amount || 0);
-    const cat = catById(e.category);
-    const li = document.createElement("li");
-    li.className = "expense-item";
-    li.innerHTML = `
-      <span class="expense-cat-icon"></span>
-      <span class="expense-main">
-        <span class="expense-cat-name"></span>
-        <span class="expense-note"></span>
-      </span>
-      <span class="expense-right">
-        <span class="expense-amount"></span>
-        <button class="del-btn" title="Delete" aria-label="Delete"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13"/></svg></button>
-      </span>`;
-    li.querySelector(".expense-cat-icon").textContent = cat.icon;
-    li.querySelector(".expense-cat-name").textContent = cat.label;
-    const note = li.querySelector(".expense-note");
-    if (e.note) note.textContent = e.note; else note.remove();
-    li.querySelector(".expense-amount").textContent = fmtMoney(e.amount);
-    li.querySelector(".del-btn").addEventListener("click", () => removeExpense(e.id));
-    list.appendChild(li);
-  }
-  el("day-total-value").textContent = fmtMoney(total);
-  el("day-empty").classList.toggle("hidden", items.length > 0);
+  for (const e of exp) list.appendChild(entryRow(e, "expense"));
+  for (const e of inc) list.appendChild(entryRow(e, "income"));
+
+  const expTotal = exp.reduce((s, e) => s + Number(e.amount || 0), 0);
+  const incTotal = inc.reduce((s, e) => s + Number(e.amount || 0), 0);
+  el("day-total-value").innerHTML =
+    `<span class="amt-exp">−${fmtMoney(expTotal)}</span> &nbsp; <span class="amt-inc">+${fmtMoney(incTotal)}</span>`;
+  el("day-empty").classList.toggle("hidden", exp.length + inc.length > 0);
+  dayModalDate = dateKey;
 }
 function closeDayModal() { el("day-modal").classList.add("hidden"); dayModalDate = null; }
-async function removeExpense(id) {
-  expenses = expenses.filter((e) => e.id !== id);
+async function removeEntry(id, type) {
+  const arr = arrFor(type);
+  const idx = arr.findIndex((e) => e.id === id);
+  if (idx >= 0) arr.splice(idx, 1);
   deleted[id] = Date.now();          // tombstone so the deletion survives merges
   renderCalendar();
   if (dayModalDate) renderDayModal(dayModalDate);
@@ -709,10 +942,23 @@ function setStatus(state) {
   else if (state === "syncing") e.innerHTML = spin + "Syncing…";
   else if (state === "saved") { e.textContent = "✓ Saved to Drive"; e.classList.add("status-ok"); }
   else if (state === "synced") { e.textContent = "✓ Connected — synced with Drive"; e.classList.add("status-ok"); }
-  else if (state === "local") { e.textContent = "• Saved on this device — will sync"; e.classList.add("status-warn"); }
-  else if (state === "offline") { e.textContent = "⚠ Offline — saved on this device, will sync"; e.classList.add("status-warn"); }
-  else if (state === "signin") { e.textContent = "• Sign in to sync with Drive"; e.classList.add("status-warn"); }
+  else if (state === "local") { e.textContent = "• Saved on device — tap ⟳ to sync to Drive"; e.classList.add("status-warn"); }
+  else if (state === "offline") { e.textContent = "⚠ Offline — saved on device, will sync when online"; e.classList.add("status-warn"); }
+  else if (state === "signin") { e.textContent = "• Saved on device — tap ⟳ to sync to Drive"; e.classList.add("status-warn"); }
   else e.textContent = "";
+
+  // While actively syncing, leave the arrow neutral (it spins); otherwise
+  // reflect the real state.
+  if (state !== "saving" && state !== "syncing") refreshSyncIcon();
+}
+
+// Always-visible indicator: green when everything is saved to Drive, amber
+// when there are local changes not yet pushed.
+function refreshSyncIcon() {
+  const r = el("refresh-btn");
+  r.classList.remove("ok", "warn");
+  r.classList.add(isDirty() ? "warn" : "ok");
+  r.title = isDirty() ? "Unsynced changes — tap to sync to Drive" : "Synced with Drive";
 }
 
 // Obtain a fresh Google token. Must be called from a user gesture (save/delete)
@@ -729,6 +975,8 @@ async function ensureToken() {
 
 function applyDoc(doc) {
   expenses = doc.expenses;
+  incomes = doc.incomes || [];
+  assets = doc.assets || [];
   deleted = doc.deleted;
   saveLocal();
   refreshAll();
@@ -799,7 +1047,10 @@ function syncNow({ label = "syncing", interactive = false } = {}) {
 async function persist() {
   saveLocal();
   setDirty();
-  await syncNow({ label: "saving", interactive: true });
+  // Background only: never interrupt adding an expense with a sign-in popup.
+  // If the token is valid it syncs silently; if not, it stays local and syncs
+  // on the next refresh/foreground.
+  await syncNow({ label: "saving", interactive: false });
 }
 
 // Manual "refresh from Drive" — always tries (re-auth allowed since it's a tap).
@@ -843,6 +1094,7 @@ function refreshAll() {
   renderCalendar();
   if (!el("stats-panel").classList.contains("hidden")) renderStats();
   if (!el("math-panel").classList.contains("hidden")) renderMath();
+  if (!el("assets-panel").classList.contains("hidden")) renderAssets();
 }
 
 function setUserUI(user) { if (user && user.photoURL) el("user-photo").src = user.photoURL; }
@@ -904,12 +1156,10 @@ function init() {
   });
 
   // Tabs
-  el("tab-calendar").addEventListener("click", () => switchTab("calendar"));
-  el("tab-stats").addEventListener("click", () => switchTab("stats"));
-  el("tab-math").addEventListener("click", () => switchTab("math"));
+  TABS.forEach((t) => el(`tab-${t}`).addEventListener("click", () => switchTab(t)));
 
   // Interactive charts (tap/hover a bar to read its amount)
-  ["chart-months", "chart-years"].forEach((id) => {
+  ["chart-months", "chart-income", "assets-chart"].forEach((id) => {
     const c = el(id);
     c.addEventListener("click", (e) => onChartPoint(c, e));
     c.addEventListener("mouseover", (e) => onChartPoint(c, e));
@@ -917,12 +1167,15 @@ function init() {
 
   // Add modal
   el("add-close").addEventListener("click", closeAddModal);
-  el("save-expense").addEventListener("click", saveExpense);
+  el("save-expense").addEventListener("click", saveEntry);
   document.querySelectorAll(".dialpad .key").forEach((btn) => btn.addEventListener("click", () => pressKey(btn.dataset.key)));
   el("add-modal").addEventListener("click", (e) => { if (e.target.id === "add-modal") closeAddModal(); });
 
-  // Quick add (floating button) — adds for today
-  el("fab-add").addEventListener("click", () => openAddModal(todayKey()));
+  // Quick add (floating button) — adds for today (expense/income toggle)
+  el("fab-add").addEventListener("click", () => openAddModal(todayKey(), "expense", ["expense", "income"]));
+
+  // Add / update an asset entry (Assets tab)
+  el("as-add").addEventListener("click", () => openAddModal(todayKey(), "asset", ["asset"]));
 
   // Manual refresh from Drive
   el("refresh-btn").addEventListener("click", manualRefresh);
@@ -944,9 +1197,12 @@ function init() {
   // always offer to add today's expense). Sync with Drive in the background.
   const doc = loadLocal();
   expenses = doc.expenses;
+  incomes = doc.incomes;
+  assets = doc.assets;
   deleted = doc.deleted;
+  refreshSyncIcon();
   const token = getToken();
-  if (token || expenses.length) {
+  if (token || expenses.length || incomes.length || assets.length) {
     enterAppLocal(true);
     if (token) syncNow({ label: "syncing", interactive: false });
   }

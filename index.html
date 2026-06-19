@@ -85,24 +85,49 @@
         <p id="sync-status" class="sync-status"></p>
       </div>
 
-      <!-- Stats panel -->
+      <!-- Stats panel — income & expenses -->
       <div id="stats-panel" class="hidden">
-        <h2>Statistics</h2>
+        <h2>Income &amp; expenses</h2>
         <div class="stat-cards">
-          <div class="stat-card"><span>All time</span><strong id="stat-alltime">€0</strong></div>
-          <div class="stat-card"><span>This month</span><strong id="stat-thismonth">€0</strong></div>
-          <div class="stat-card"><span>Monthly avg</span><strong id="stat-avg">€0</strong></div>
-          <div class="stat-card"><span>Entries</span><strong id="stat-count">0</strong></div>
+          <div class="stat-card"><span>Income</span><strong id="stat-income" class="amt-inc">€0</strong></div>
+          <div class="stat-card"><span>Expenses</span><strong id="stat-expense" class="amt-exp">€0</strong></div>
+          <div class="stat-card"><span>Net</span><strong id="stat-net">€0</strong></div>
+          <div class="stat-card"><span>Net this month</span><strong id="stat-month-net">€0</strong></div>
         </div>
-        <h3 id="chart-months-title">Monthly totals</h3>
+        <h3 id="chart-months-title">Monthly expenses</h3>
         <div id="chart-months" class="chart-wrap"></div>
-        <h3>Totals by year</h3>
-        <div id="chart-years" class="chart-wrap"></div>
-        <h3 id="stat-cat-title">By category</h3>
+        <h3 id="chart-income-title">Monthly income</h3>
+        <div id="chart-income" class="chart-wrap"></div>
+        <h3 id="stat-cat-title">Expenses by category</h3>
         <div id="stat-cats" class="bars"></div>
-        <h3>Month by month</h3>
+        <h3 id="stat-inc-cat-title">Income by category</h3>
+        <div id="stat-inc-cats" class="bars"></div>
+        <h3>Net by month</h3>
         <div id="stat-months" class="bars scroll-list"></div>
-        <p id="stat-empty" class="empty hidden">No expenses yet.</p>
+        <p id="stat-empty" class="empty hidden">No data yet.</p>
+      </div>
+
+      <!-- Assets panel — savings / investments / crypto -->
+      <div id="assets-panel" class="hidden">
+        <h2>Savings &amp; investments</h2>
+        <div class="nw-hero">
+          <span>Total (savings + investments + crypto)</span>
+          <strong id="as-total">€0</strong>
+        </div>
+        <div class="stat-cards stat-cards-2">
+          <div class="stat-card"><span>Change (all time)</span><strong id="as-chg-all">—</strong></div>
+          <div class="stat-card"><span>Change (30 days)</span><strong id="as-chg-30">—</strong></div>
+        </div>
+        <button id="as-add" class="btn btn-primary btn-block">+ Add / update entry</button>
+        <h3>Total over time</h3>
+        <div id="assets-chart" class="chart-wrap"></div>
+        <h3>Allocation</h3>
+        <div id="as-alloc" class="bars"></div>
+        <h3>Latest change by type</h3>
+        <div id="as-changes" class="changes"></div>
+        <h3>Entries</h3>
+        <ul id="as-list" class="expense-list"></ul>
+        <p id="as-empty" class="empty hidden">No entries yet — tap “Add / update entry”.</p>
       </div>
 
       <!-- Math panel -->
@@ -130,6 +155,10 @@
           <svg class="ic" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01"/></svg>
           <span>Math</span>
         </button>
+        <button id="tab-assets" class="tab">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 7v5h-5"/></svg>
+          <span>Assets</span>
+        </button>
       </nav>
     </section>
 
@@ -143,9 +172,10 @@
   <div id="add-modal" class="modal-overlay hidden">
     <div class="modal">
       <div class="modal-head">
-        <span id="add-date-label" class="modal-date"></span>
+        <input type="date" id="add-date" class="date-input" />
         <button id="add-close" class="icon-btn" aria-label="Close"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
+      <div id="type-toggle" class="type-toggle"></div>
       <div id="amount-display" class="amount-display">€0</div>
       <div id="cat-chips" class="cat-chips"></div>
       <input id="note-input" class="note-input" type="text" maxlength="60"
