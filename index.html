@@ -107,27 +107,27 @@
         <p id="stat-empty" class="empty hidden">No data yet.</p>
       </div>
 
-      <!-- Assets panel — savings / investments / crypto -->
+      <!-- Assets panel — savings / investments / crypto (month by month) -->
       <div id="assets-panel" class="hidden">
         <h2>Savings &amp; investments</h2>
+        <div class="as-toolbar">
+          <button id="as-prev" class="icon-btn" aria-label="Previous month"><svg class="ic" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+          <span id="as-month-label" class="as-month-label"></span>
+          <button id="as-next" class="icon-btn" aria-label="Next month"><svg class="ic" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+        </div>
         <div class="nw-hero">
-          <span>Total (savings + investments + crypto)</span>
+          <span>Net worth</span>
           <strong id="as-total">€0</strong>
+          <span id="as-change" class="as-change"></span>
         </div>
-        <div class="stat-cards stat-cards-2">
-          <div class="stat-card"><span>Change (all time)</span><strong id="as-chg-all">—</strong></div>
-          <div class="stat-card"><span>Change (30 days)</span><strong id="as-chg-30">—</strong></div>
-        </div>
-        <button id="as-add" class="btn btn-primary btn-block">+ Add / update entry</button>
-        <h3>Total over time</h3>
+        <p class="math-note">Tap a type to set its value for this month.</p>
+        <div id="as-editor" class="as-editor"></div>
+        <h3>Net worth over time</h3>
         <div id="assets-chart" class="chart-wrap"></div>
         <h3>Allocation</h3>
         <div id="as-alloc" class="bars"></div>
-        <h3>Latest change by type</h3>
+        <h3>Change vs previous month</h3>
         <div id="as-changes" class="changes"></div>
-        <h3>Entries</h3>
-        <ul id="as-list" class="expense-list"></ul>
-        <p id="as-empty" class="empty hidden">No entries yet — tap “Add / update entry”.</p>
       </div>
 
       <!-- Math panel -->
@@ -172,6 +172,7 @@
   <div id="add-modal" class="modal-overlay hidden">
     <div class="modal">
       <div class="modal-head">
+        <span id="add-title" class="modal-date hidden"></span>
         <input type="date" id="add-date" class="date-input" />
         <button id="add-close" class="icon-btn" aria-label="Close"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
@@ -195,6 +196,7 @@
         <button class="key key-del" data-key="del">⌫</button>
       </div>
       <button id="save-expense" class="btn btn-primary btn-block">Add expense</button>
+      <button id="as-clear" class="btn btn-ghost btn-block hidden">Clear this month's value</button>
     </div>
   </div>
 

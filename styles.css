@@ -332,6 +332,32 @@ h2 { font-size: 1.05rem; margin: 0; }
 }
 .stat-cards-2 { grid-template-columns: 1fr 1fr; }
 .stat-card .btn { margin-top: 2px; padding: 8px; font-size: 0.85rem; }
+/* Assets — month toolbar + category editor */
+.as-toolbar {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  margin-bottom: 12px;
+}
+.as-month-label { font-weight: 700; font-size: 1.05rem; min-width: 9em; text-align: center; }
+.as-change { display: block; font-size: 0.82rem; font-weight: 600; margin-top: 4px; }
+.as-editor { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
+.as-cat-row {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%;
+  padding: 13px 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+.as-cat-row:active { transform: scale(0.99); }
+.as-cat-row.set { border-color: var(--primary); }
+.as-cat-name { font-weight: 600; }
+.as-cat-val { font-weight: 700; }
+.as-cat-val .carried { font-weight: 400; font-style: normal; font-size: 0.72rem; color: var(--muted); }
+
 /* Per-type change list */
 .changes { display: flex; flex-direction: column; gap: 6px; }
 .change-row {

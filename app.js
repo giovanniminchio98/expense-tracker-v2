@@ -55,6 +55,9 @@ let activeType = "expense";        // expense | income | asset (in the add modal
 let selectedCategory = "food";
 let dayModalDate = null;
 let editingId = null;               // id of the entry being edited (null = adding)
+let assetMode = false;             // add-modal is setting an asset value
+let assetEditCat = null;           // category being set in asset mode
+let activeAssetYm = null;          // month being set in asset mode
 let entered = false;
 
 // --- Drive token (kept in memory first; localStorage is a best-effort cache so
@@ -317,141 +320,152 @@ function switchTab(tab) {
 }
 
 // =====================================================================
-//  Assets (savings / investments / crypto — independent of income/expenses)
+//  Assets (savings / investments / crypto) — month-by-month tracking.
+//  Model: one value per category per month. Net worth for a month = sum of
+//  each category's value (carried forward from the last month it was set).
 // =====================================================================
-
-// Latest snapshot per asset category.
-function latestByCategory() {
-  const latest = {};
-  for (const a of assets) {
-    const cur = latest[a.category];
-    if (!cur || a.date > cur.date || (a.date === cur.date && (a.createdAt || "") > (cur.createdAt || "")))
-      latest[a.category] = a;
-  }
-  return latest;
-}
-function assetsTotal() {
-  return Object.values(latestByCategory()).reduce((s, a) => s + Number(a.amount || 0), 0);
-}
-
-// Total value over time: at each date that has an entry, sum the latest-known
-// value per category up to that date (a step series of the changes).
-function assetSeries() {
-  if (!assets.length) return [];
-  const sorted = [...assets].sort((a, b) => a.date.localeCompare(b.date) || (a.createdAt || "").localeCompare(b.createdAt || ""));
-  const latest = {};
-  const byDate = new Map();
-  for (const a of sorted) {
-    latest[a.category] = a;
-    const total = Object.values(latest).reduce((s, x) => s + Number(x.amount || 0), 0);
-    byDate.set(a.date, total);   // last entry on a date wins
-  }
-  return [...byDate.entries()].map(([date, value]) => ({ short: date.slice(5), label: date, value }));
-}
+let assetMonth = null;        // "YYYY-MM" currently viewed in the Assets tab
 
 function signedPct(p) {
   if (p === null || !isFinite(p)) return "—";
   return (p >= 0 ? "+" : "−") + Math.abs(p).toFixed(1) + "%";
 }
-// Latest two distinct-date snapshots for a category (for change vs previous).
-function lastTwo(catId) {
-  const es = assets.filter((a) => a.category === catId)
-    .sort((a, b) => a.date.localeCompare(b.date) || (a.createdAt || "").localeCompare(b.createdAt || ""));
-  return [es[es.length - 1], es[es.length - 2]];
+function ymOf(d) { return d.slice(0, 7); }
+function ymAdd(ym, delta) {
+  let y = +ym.slice(0, 4), m = +ym.slice(5, 7) - 1 + delta;
+  y += Math.floor(m / 12); m = ((m % 12) + 12) % 12;
+  return `${y}-${pad(m + 1)}`;
+}
+function ymLabel(ym) { return `${MONTHS[+ym.slice(5, 7) - 1]} ${ym.slice(0, 4)}`; }
+function ymShort(ym) { return `${MONTHS_SHORT[+ym.slice(5, 7) - 1]}`; }
+
+// The latest entry explicitly set for a category in a given month (if any).
+function assetEntry(catId, ym) {
+  let best = null;
+  for (const a of assets) {
+    if (a.category !== catId || ymOf(a.date) !== ym) continue;
+    if (!best || (a.createdAt || "") > (best.createdAt || "")) best = a;
+  }
+  return best;
+}
+// Effective value: the most recent entry for the category at or before `ym`.
+function assetValueAt(catId, ym) {
+  let best = null;
+  for (const a of assets) {
+    if (a.category !== catId || ymOf(a.date) > ym) continue;
+    if (!best || ymOf(a.date) > ymOf(best.date) || (ymOf(a.date) === ymOf(best.date) && (a.createdAt || "") > (best.createdAt || "")))
+      best = a;
+  }
+  return best ? Number(best.amount || 0) : 0;
+}
+function netWorthAt(ym) { return CATEGORIES.asset.reduce((s, c) => s + assetValueAt(c.id, ym), 0); }
+function assetFirstMonth() {
+  if (!assets.length) return null;
+  return assets.map((a) => ymOf(a.date)).sort()[0];
+}
+// One net-worth point per month from the first entry to the current month.
+function assetMonthsSeries() {
+  const first = assetFirstMonth();
+  if (!first) return [];
+  const cur = todayKey().slice(0, 7);
+  const out = [];
+  let ym = first < cur ? first : cur;
+  while (ym <= cur && out.length < 120) {
+    out.push({ ym, short: ymShort(ym), label: ymLabel(ym), value: netWorthAt(ym) });
+    ym = ymAdd(ym, 1);
+  }
+  return out;
+}
+
+// Set (upsert) a category's value for a month, enforcing one entry per
+// (category, month) — collapses any legacy duplicates.
+function setAssetValue(catId, ym, amount, note) {
+  const now = new Date().toISOString();
+  const dups = assets.filter((a) => a.category === catId && ymOf(a.date) === ym)
+    .sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
+  if (dups.length) {
+    const keep = dups[dups.length - 1];
+    keep.amount = amount; keep.note = note; keep.date = `${ym}-01`; keep.updatedAt = now;
+    for (let i = 0; i < dups.length - 1; i++) { deleted[dups[i].id] = Date.now(); }
+    assets = assets.filter((a) => a === keep || !(a.category === catId && ymOf(a.date) === ym));
+  } else {
+    assets.push({ id: crypto.randomUUID(), category: catId, date: `${ym}-01`, amount, note, createdAt: now, updatedAt: now });
+  }
+}
+function clearAssetValue(catId, ym) {
+  for (const a of assets) if (a.category === catId && ymOf(a.date) === ym) deleted[a.id] = Date.now();
+  assets = assets.filter((a) => !(a.category === catId && ymOf(a.date) === ym));
 }
 
 function renderAssets() {
-  const total = assetsTotal();
+  if (!assetMonth) assetMonth = todayKey().slice(0, 7);
+  const ym = assetMonth;
+  el("as-month-label").textContent = ymLabel(ym);
+
+  const total = netWorthAt(ym);
   el("as-total").textContent = fmtMoney(total);
 
-  const series = assetSeries();           // [{label:date, value}], ascending
-  // All-time and 30-day change %
-  const setChg = (id, base, cur) => {
-    const e = el(id);
-    const pct = base ? ((cur - base) / base) * 100 : null;
-    e.textContent = signedPct(pct);
-    e.className = "amt-" + (pct === null ? "" : pct >= 0 ? "inc" : "exp");
-  };
-  if (series.length) {
-    setChg("as-chg-all", series[0].value, total);
-    const cutoff = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
-    let base30 = series[0].value;
-    for (const p of series) { if (p.label <= cutoff) base30 = p.value; else break; }
-    setChg("as-chg-30", base30, total);
-  } else {
-    el("as-chg-all").textContent = "—"; el("as-chg-30").textContent = "—";
-    el("as-chg-all").className = ""; el("as-chg-30").className = "";
+  // Change vs previous month
+  const prevYm = ymAdd(ym, -1);
+  const prevTotal = netWorthAt(prevYm);
+  const pct = prevTotal ? ((total - prevTotal) / prevTotal) * 100 : null;
+  const chgEl = el("as-change");
+  chgEl.textContent = (total - prevTotal >= 0 ? "+" : "−") + fmtMoney(Math.abs(total - prevTotal)) + " (" + signedPct(pct) + ") vs " + ymShort(prevYm);
+  chgEl.className = "as-change amt-" + (total - prevTotal >= 0 ? "inc" : "exp");
+
+  // Category editor — tap a row to set this month's value
+  const ed = el("as-editor");
+  ed.innerHTML = "";
+  for (const c of CATEGORIES.asset) {
+    const ex = assetEntry(c.id, ym);
+    const val = assetValueAt(c.id, ym);
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "as-cat-row" + (ex ? " set" : "");
+    row.innerHTML = `<span class="as-cat-name">${c.icon} ${c.label}</span>
+      <span class="as-cat-val">${val ? fmtMoney(val) : "Set value"}${!ex && val ? ' <i class="carried">carried</i>' : ""}</span>`;
+    row.addEventListener("click", () => openAssetEditor(c.id, ym));
+    ed.appendChild(row);
   }
 
-  // Allocation (latest value + % of total)
-  const latest = latestByCategory();
+  // Net worth over time (month by month)
+  const series = assetMonthsSeries();
+  if (series.length) renderChartInto("assets-chart", series, { highlightIndex: series.findIndex((s) => s.ym === ym) });
+  else el("assets-chart").innerHTML = `<p class="empty">Set a value to start tracking.</p>`;
+
+  // Allocation for the viewed month (value + % of total)
   const alloc = el("as-alloc");
   alloc.innerHTML = "";
-  const allocRows = CATEGORIES.asset
-    .map((c) => ({ c, value: latest[c.id] ? Number(latest[c.id].amount || 0) : 0 }))
-    .filter((r) => r.value > 0)
-    .sort((a, b) => b.value - a.value);
-  if (!allocRows.length) alloc.innerHTML = `<p class="empty">No entries yet.</p>`;
-  for (const r of allocRows) {
-    const pct = total ? (r.value / total) * 100 : 0;
+  const rows = CATEGORIES.asset.map((c) => ({ c, value: assetValueAt(c.id, ym) })).filter((r) => r.value > 0).sort((a, b) => b.value - a.value);
+  if (!rows.length) alloc.innerHTML = `<p class="empty">No values yet.</p>`;
+  for (const r of rows) {
+    const p = total ? (r.value / total) * 100 : 0;
     const row = document.createElement("div");
     row.className = "bar-row";
     row.innerHTML = `<span class="bar-label">${r.c.icon} ${r.c.label}</span>
       <span class="bar-track"><span class="bar-fill"></span></span>
       <span class="bar-value"></span>`;
-    row.querySelector(".bar-fill").style.width = pct + "%";
-    row.querySelector(".bar-value").textContent = `${fmtMoney(r.value)} · ${pct.toFixed(0)}%`;
+    row.querySelector(".bar-fill").style.width = p + "%";
+    row.querySelector(".bar-value").textContent = `${fmtMoney(r.value)} · ${p.toFixed(0)}%`;
     alloc.appendChild(row);
   }
 
-  // Per-type latest change (vs previous entry)
+  // Change by type vs previous month
   const chg = el("as-changes");
   chg.innerHTML = "";
-  const changeRows = CATEGORIES.asset.map((c) => {
-    const [last, prev] = lastTwo(c.id);
-    if (!last) return null;
-    const pct = prev && prev.amount ? ((last.amount - prev.amount) / prev.amount) * 100 : null;
-    return { c, value: Number(last.amount || 0), pct };
-  }).filter(Boolean);
-  if (!changeRows.length) chg.innerHTML = `<p class="empty">Add a second entry for a type to see its change.</p>`;
-  for (const r of changeRows) {
+  let any = false;
+  for (const c of CATEGORIES.asset) {
+    const cur = assetValueAt(c.id, ym), prev = assetValueAt(c.id, prevYm);
+    if (cur === 0 && prev === 0) continue;
+    any = true;
+    const p = prev ? ((cur - prev) / prev) * 100 : null;
     const item = document.createElement("div");
     item.className = "change-row";
-    item.innerHTML = `<span>${r.c.icon} ${r.c.label}</span>
-      <span class="change-val"><span class="muted">${fmtMoney(r.value)}</span> <b class="amt-${r.pct === null ? "" : r.pct >= 0 ? "inc" : "exp"}">${signedPct(r.pct)}</b></span>`;
+    item.innerHTML = `<span>${c.icon} ${c.label}</span>
+      <span class="change-val"><span class="muted">${fmtMoney(cur)}</span> <b class="amt-${p === null ? "" : p >= 0 ? "inc" : "exp"}">${signedPct(p)}</b></span>`;
     chg.appendChild(item);
   }
-
-  if (assets.length) renderChartInto("assets-chart", series, {});
-  else el("assets-chart").innerHTML = `<p class="empty">Add entries to see the trend.</p>`;
-
-  const list = el("as-list");
-  list.innerHTML = "";
-  const recent = [...assets].sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt || "").localeCompare(a.createdAt || ""));
-  for (const a of recent) {
-    const cat = catById("asset", a.category);
-    const li = document.createElement("li");
-    li.className = "expense-item";
-    li.innerHTML = `
-      <span class="expense-cat-icon"></span>
-      <span class="expense-main">
-        <span class="expense-cat-name"></span>
-        <span class="expense-note"></span>
-      </span>
-      <span class="expense-right">
-        <span class="expense-amount"></span>
-        <button class="del-btn" title="Delete" aria-label="Delete">${DEL_ICON}</button>
-      </span>`;
-    li.querySelector(".expense-cat-icon").textContent = cat.icon;
-    li.querySelector(".expense-cat-name").textContent = cat.label;
-    li.querySelector(".expense-note").textContent = a.date + (a.note ? " · " + a.note : "");
-    li.querySelector(".expense-amount").textContent = fmtMoney(a.amount);
-    // Assets are add-only history: delete a wrong one, don't edit in place
-    // (editing/moving an old entry is what lost previous values).
-    li.querySelector(".del-btn").addEventListener("click", () => removeEntry(a.id, "asset"));
-    list.appendChild(li);
-  }
-  el("as-empty").classList.toggle("hidden", assets.length > 0);
+  if (!any) chg.innerHTML = `<p class="empty">No changes to show yet.</p>`;
 }
 
 // =====================================================================
@@ -813,8 +827,10 @@ function refreshAmountDisplay() {
   el("amount-display").textContent = amountStr === "" ? "€0" : "€" + amountStr;
 }
 // Open in "add" mode (default) or "edit" mode when an existing entry is passed.
+// (expenses / income only — assets use openAssetEditor.)
 function openAddModal(dateKey, type = "expense", types = ["expense", "income"], edit = null) {
   closeDayModal();
+  assetMode = false;
   editingId = edit ? edit.id : null;
   addTypes = edit ? [type] : types;     // type is fixed while editing
   activeType = type;
@@ -824,12 +840,41 @@ function openAddModal(dateKey, type = "expense", types = ["expense", "income"], 
   el("note-input").value = edit ? (edit.note || "") : "";
   el("add-date").value = activeDate;
   el("save-expense").textContent = edit ? "Save changes" : "Add";
+  // txn layout: show date + toggle + chips, hide asset bits
+  el("add-title").classList.add("hidden");
+  el("add-date").classList.remove("hidden");
+  el("cat-chips").classList.remove("hidden");
+  el("as-clear").classList.add("hidden");
   renderTypeToggle();
   renderCatChips();
   refreshAmountDisplay();
   el("add-modal").classList.remove("hidden");
 }
-function closeAddModal() { el("add-modal").classList.add("hidden"); editingId = null; }
+
+// Set/update a single category's value for a single month.
+function openAssetEditor(catId, ym) {
+  closeDayModal();
+  assetMode = true;
+  editingId = null;
+  activeType = "asset";
+  assetEditCat = catId;
+  activeAssetYm = ym;
+  const c = catById("asset", catId);
+  const ex = assetEntry(catId, ym);
+  amountStr = ex ? String(ex.amount) : "";
+  el("note-input").value = ex ? (ex.note || "") : "";
+  el("add-title").textContent = `${c.icon} ${c.label} — ${ymLabel(ym)}`;
+  el("add-title").classList.remove("hidden");
+  el("add-date").classList.add("hidden");
+  el("type-toggle").classList.add("hidden");
+  el("cat-chips").classList.add("hidden");
+  el("save-expense").textContent = "Save value";
+  el("as-clear").classList.toggle("hidden", !ex);
+  refreshAmountDisplay();
+  el("add-modal").classList.remove("hidden");
+}
+
+function closeAddModal() { el("add-modal").classList.add("hidden"); editingId = null; assetMode = false; }
 function pressKey(key) {
   if (key === "del") amountStr = amountStr.slice(0, -1);
   else if (key === ".") { if (!amountStr.includes(".")) amountStr = (amountStr || "0") + "."; }
@@ -843,19 +888,26 @@ function pressKey(key) {
 async function saveEntry() {
   const amount = parseFloat(amountStr);
   if (!(amount > 0)) { toast("Enter an amount"); return; }
-  const date = el("add-date").value || activeDate;
   const note = el("note-input").value.trim();
-  const now = new Date().toISOString();
-  const arr = arrFor(activeType);
-  if (editingId) {
-    const rec = arr.find((e) => e.id === editingId);
-    if (rec) { rec.amount = amount; rec.category = selectedCategory; rec.note = note; rec.date = date; rec.updatedAt = now; }
-    editingId = null;
+  if (assetMode) {
+    setAssetValue(assetEditCat, activeAssetYm, amount, note);
   } else {
-    // Every add (including assets) is a new, preserved entry — so the full
-    // history of changes is kept and net worth = sum of each type's latest.
-    arr.push({ id: crypto.randomUUID(), date, amount, category: selectedCategory, note, createdAt: now, updatedAt: now });
+    const date = el("add-date").value || activeDate;
+    const now = new Date().toISOString();
+    const arr = arrFor(activeType);
+    if (editingId) {
+      const rec = arr.find((e) => e.id === editingId);
+      if (rec) { rec.amount = amount; rec.category = selectedCategory; rec.note = note; rec.date = date; rec.updatedAt = now; }
+    } else {
+      arr.push({ id: crypto.randomUUID(), date, amount, category: selectedCategory, note, createdAt: now, updatedAt: now });
+    }
   }
+  closeAddModal();
+  refreshAll();
+  await persist();
+}
+async function clearAssetEntry() {
+  clearAssetValue(assetEditCat, activeAssetYm);
   closeAddModal();
   refreshAll();
   await persist();
@@ -1155,6 +1207,13 @@ function init() {
     c.addEventListener("click", (e) => onChartPoint(c, e));
     c.addEventListener("mouseover", (e) => onChartPoint(c, e));
   });
+  // Tapping the net-worth chart jumps to that month
+  el("assets-chart").addEventListener("click", (e) => {
+    const rect = e.target.closest && e.target.closest("rect.cbar");
+    if (!rect) return;
+    const s = assetMonthsSeries()[Number(rect.dataset.i)];
+    if (s) { assetMonth = s.ym; renderAssets(); }
+  });
 
   // Add modal
   el("add-close").addEventListener("click", closeAddModal);
@@ -1165,8 +1224,10 @@ function init() {
   // Quick add (floating button) — adds for today (expense/income toggle)
   el("fab-add").addEventListener("click", () => openAddModal(todayKey(), "expense", ["expense", "income"]));
 
-  // Add / update an asset entry (Assets tab)
-  el("as-add").addEventListener("click", () => openAddModal(todayKey(), "asset", ["asset"]));
+  // Assets month navigation + clear
+  el("as-prev").addEventListener("click", () => { assetMonth = ymAdd(assetMonth || todayKey().slice(0, 7), -1); renderAssets(); });
+  el("as-next").addEventListener("click", () => { assetMonth = ymAdd(assetMonth || todayKey().slice(0, 7), 1); renderAssets(); });
+  el("as-clear").addEventListener("click", clearAssetEntry);
 
   // Manual refresh from Drive
   el("refresh-btn").addEventListener("click", manualRefresh);
