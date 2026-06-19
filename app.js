@@ -446,9 +446,9 @@ function renderAssets() {
     li.querySelector(".expense-cat-name").textContent = cat.label;
     li.querySelector(".expense-note").textContent = a.date + (a.note ? " · " + a.note : "");
     li.querySelector(".expense-amount").textContent = fmtMoney(a.amount);
-    li.querySelector(".del-btn").addEventListener("click", (ev) => { ev.stopPropagation(); removeEntry(a.id, "asset"); });
-    li.classList.add("tappable");
-    li.addEventListener("click", () => openAddModal(a.date, "asset", ["asset"], a));
+    // Assets are add-only history: delete a wrong one, don't edit in place
+    // (editing/moving an old entry is what lost previous values).
+    li.querySelector(".del-btn").addEventListener("click", () => removeEntry(a.id, "asset"));
     list.appendChild(li);
   }
   el("as-empty").classList.toggle("hidden", assets.length > 0);
@@ -851,18 +851,9 @@ async function saveEntry() {
     const rec = arr.find((e) => e.id === editingId);
     if (rec) { rec.amount = amount; rec.category = selectedCategory; rec.note = note; rec.date = date; rec.updatedAt = now; }
     editingId = null;
-  } else if (activeType === "asset") {
-    // One holding entry per category per month — update the month's entry if it
-    // already exists, otherwise create it.
-    const ym = monthKey(date);
-    const rec = arr.find((e) => e.category === selectedCategory && monthKey(e.date) === ym);
-    if (rec) {
-      rec.amount = amount; rec.note = note; rec.date = date; rec.updatedAt = now;
-      toast("Updated this month's entry");
-    } else {
-      arr.push({ id: crypto.randomUUID(), date, amount, category: selectedCategory, note, createdAt: now, updatedAt: now });
-    }
   } else {
+    // Every add (including assets) is a new, preserved entry — so the full
+    // history of changes is kept and net worth = sum of each type's latest.
     arr.push({ id: crypto.randomUUID(), date, amount, category: selectedCategory, note, createdAt: now, updatedAt: now });
   }
   closeAddModal();
